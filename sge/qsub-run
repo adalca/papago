@@ -1,0 +1,516 @@
+#! /bin/bash
+#  Front-end to sge, desgined to give common SGE options and run the supplied
+#  command
+
+########################################################################
+### Produced at SBIA, UPHS, University of Pennsylvania
+###		 Contact: sbia-software@uphs.upenn.edu
+### 
+### This software is available subject to the terms of the Open Source
+### Initiative (OSI) BSD License:
+###
+######  Copyright (c) 2010, University of Pennsylvania
+######  All rights reserved.
+######  
+######  Redistribution and use in source and binary forms, with or without
+######  modification, are permitted provided that the following conditions
+######  are met:
+######  
+######  * Redistributions of source code must retain the above copyright notice,
+######    this list of conditions and the following disclaimer.
+######  
+######  * Redistributions in binary form must reproduce the above copyright
+######    notice, this list of conditions and the following disclaimer in the
+######    documentation and/or other materials provided with the distribution.
+######  
+######  * Neither the name of the University of Pennsylvania nor the names of
+######    its contributors may be used to endorse or promote products derived from
+######    this software without specific prior written permission.
+######  
+######  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+######  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+######  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+######  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+######  HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+######  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+######  TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+######  PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+######  LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+######  NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+######  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+###
+########################################################################
+
+SVNversion="$Id: qsub-run 685 2011-05-29 01:01:45Z bergmama@UPHS.PENNHEALTH.PRV $"
+MyName=$0
+MyName=`echo $MyName | sed -e "s,.*\/,,"`
+RELEASE="version 1.1.10, front-end to SGE qsub command"
+
+checkandexit()
+{
+	# Check the supplied value, typically the return value from the
+	# previous command. If the return value is not 0, then print a 
+	# message to STDERR and exit.
+
+        if [ $1 != 0 ] ; then
+                # There was an error, bail out!
+                /bin/echo "$2" 1>&2
+                exit $1
+		fi
+}
+
+version()
+{
+# Display the version number and date of modification extracted from
+# the header.
+
+        SVNversion=`echo $SVNversion |sed -e "s/ $MyName / /g" -e "s/^.*: //" -e "s/ [a-z]*@UPHS.*//"`
+        echo "$MyName $SVNversion $RELEASE"
+        echo "Contact: sbia-software@uphs.upenn.edu"
+        exit 5
+}
+
+usage()
+{
+# Display a usage message
+cat - << E-O-USAGE
+$MyName [-c] command_to_run_under_SGE options
+
+         [-u, --usage]         : Display this message
+         [-h, --help]          : Display more extensive help
+         [-v, --version]       : Display version information
+
+         [--sge SGE_ARG] : Pass the supplied argument to SGE. This can
+                                 be given multiple times. Multi-word arguments
+                                 must be quoted (see example with --help).
+
+
+         [-c, --createscript]  : Do not submit the job to qsub, but produce the
+                                 script that would be used.
+
+E-O-USAGE
+    echo
+    echo $*
+    echo ""
+    echo "Contact: sbia-software@uphs.upenn.edu"
+}
+
+help()
+{
+    usage
+
+cat - << E-O-HELP
+  Description:
+   $MyName will run commands under SGE using a default set of options. The
+   $MyName program can also be used to produce a shell script suitable
+   for customizing.
+
+   The commands to be queued by SGE can be any program run at the shell
+   (binary executable, shell script, etc.).
+
+   The options supplied to SGE are:
+
+      Execution Directory:      $CWD
+      Output Directory:         $OUTDIR
+      Error Message File:       $OUTDIR/cmd_name.JOBID.stderr
+      Standard Message File:    $OUTDIR/cmd_name.JOBID.stdout
+      Shell used to run job:    $SGESHELL
+      Mail recipient:           $MAILTO (if determined from username)
+      Send mail on job start:   yes     (if determined from username)
+      Send mail on job end:     yes     (if determined from username)
+
+
+   The "-c" (or --createscript) option to $MyName will create a shell
+   script that can be submitted to SGE with the qsub command. This
+   script can be customized as needed. The "-c" option sends the script
+   to stdout, so it must be redirected to a file, as in:
+
+      $MyName -c command_to_queue options option > my_qsub_submit_script.sh
+
+   The "--sge SGE_ARG" option to $MyName will embedd the supplied arguments
+   into the SGE submit script, as in:
+
+      $MyName --sge "-pe threaded 6" --sge "-V" command_to_queue opt1
+    
+
+  Contact:
+      sbia-software@uphs.upenn.edu
+E-O-HELP
+}
+
+parse()
+{
+	if [ $# = 0 ] ; then
+		usage "No command given to run under SGE"
+		exit 1
+	fi
+
+	for arg in "$@"
+	do
+		case "$arg" in
+			-u|-usage|--usage) usage; exit 1 ;;
+			-h|-help|--help)  help; exit 0 ;shift ;;
+			-v|-version|--version) version; shift;;
+			-c|-createscript|--createscript)	
+				createscript=yes
+				shift
+				;;
+
+
+			--) shift ;userargs=$* ;  break ;; # two dashes are set by getopts to represent the end of args
+
+			-*)
+				# something's wrong
+				usage "Unrecognized option: $arg"
+				exit 1
+				;;
+			*)
+				# this must be the start of the user's command to submit
+				# to sge
+				userargs=$*
+				break
+				;;
+		esac
+	done
+}
+
+uname2email()
+{
+	# Given a login name, lookup the person's email address.
+
+	# This is implemented as a function for easy substitution of
+	# different methods (ie., LDAP, AD, etc.)
+
+	# Currently (Thu Aug 20 13:20:20 EDT 2009), there's an NIS
+	# table mapping loing names to email addresses.
+
+	# Lookup the user in the uname2email NIS table to get their email address
+	# Use a complicated ypcat command instead of a simple ypmatch(1) to handle
+	# the case where the command is run from an machine that's not in the NIS
+	# domain (ie., all the compute nodes)
+
+	uname=$1
+	ypcat -d sbiarad -h sbia-infr-vdir1 -k uname2email 2> /dev/null| grep "^$1 " | cut -d" " -f2
+}
+
+###################### End of function definitions ########################
+
+
+######################################################
+# Set default values
+QSUB="qsub"
+createscript="no"
+SGESHELL=/bin/bash
+CWD=`pwd`
+
+###### start of setting MAILBLOCK  #######
+# block of SGE commands and comments to use in submit
+# script re. sending email when the job begins/ends
+# The value of the "MAILTO" variable will be determined later
+# Note that the following construction is used to create the MAILBLOCK
+# in the form that it will appear in the SGE submit script. Within the
+# MAILBLOCK variable, the carriage return/new line (\n) is converted to
+# "+" so that it can be reconstituted after all substitutions within
+# the variable are complete. Similarly, the "#" is converted to "%"
+# so that the later "eval" command will apply to the entire contents of
+# MAILBLOCK, not stop at the first comment character
+MAILBLOCK=$(tr "\012" "+" <<EOF
+#### My email address:
+\$COMMENT -M \$MAILTO
+#### send mail at the beginning of the job
+\$COMMENT -m b #### send mail at the end of the job
+\$COMMENT -m e #### send mail in case the job is aborted
+\$COMMENT -m a
+EOF
+)
+# Convert comment chars to % in order to allow future "eval" command to proceed
+MAILBLOCK=`echo $MAILBLOCK | tr "#" "%"`
+###### end of setting MAILBLOCK  #######
+
+# Test if we're running under a sudo shell...
+ruid=`who am i | cut -d" " -f1`	# real UID
+euid=`whoami`					# effective UID
+
+if [ "$ruid" != "$euid" ] ; then
+	# we're running under sudo, or something else funky is happening...
+	# issue a warning
+	/bin/echo "Warning: effective user id ($euid) does not match real user id ($ruid)" 1>&2
+	echo $HOME | grep -q "\/$euid$"
+	if [ $? != 0 ] ; then
+		# The $HOME variable doesn't have $euid as the final directory component, ie., $HOME
+		# is probably set to /path/to/homes/$ruid....can we write there?
+		if [ ! -w $HOME ] ; then
+			# The $euid could not write to the $ruid's home directory (no surprise). See if there's a
+			# directory for $euid
+			euidHOME=`getent passwd $euid|cut -d: -f6`
+			if [ ! -z $euidHOME -a -d $euidHOME ] ; then
+				HOME=$euidHOME
+			fi
+		fi
+	fi
+
+	MAILTO=$USER@csail.mit.edu  #`uname2email $USER` 
+	if [ -z $MAILTO ] ; then
+		MAILTO=$USER@csail.mit.edu #  `uname2email $ruid`
+	fi
+else
+	MAILTO=$USER@csail.mit.edu  #`uname2email $USER`
+fi
+
+OUTDIR=$SGE_LOG_PATH
+
+################ Command-line parsing #####################################
+
+i=0
+while [ $i -le $# ]
+do
+	# Walk through the list of arguments
+	eval arg=\${$i}
+	if [ "$arg" = "--sge" ] ; then
+		# the following argument is for SGE, not part of the commandline
+		# shift the index to that option
+		i=$((i + 1))
+		eval arg=\${$i}
+		SGEOPTS=("${SGEOPTS[@]}" "$arg")	# Build SGEOPTS as an array variable to allow future expansion of
+									    # individual options, so they can be turned into SGE submit script
+										# block comments (preceeded with #$)
+	else
+		# Horrible hack to attempt to quote any meta-characters in the $* string that
+		# have special meaning to the shell. Note that the order of characters and the
+		# number of backslashes within the sed command are critical.
+		#
+		# if the argument has non-alphanumeric chars (and non + - _ / . ~), quote those
+		# special characters by prefacing them with a backslash
+		# There's some magic here...the $arg is prefaced by a space, to prevent it's value from potentially
+		# being interperted as an option to the command "echo". Ie., if "$arg" = "-e", then
+		#		echo $arg
+		# would be equivalent to
+		#		echo -e
+		# which produces a carriage return (null)
+		#
+		# However, if "$arg" = " -e" then the command:
+		#		echo $arg
+		# produces
+		#		[SPACE]-e
+		#
+		# the "sed" command strips off the leading space, then escapes the special meaning of any meta characters
+		# in order to build the final commandline
+		arg=`echo " $arg" | sed -e "s/^ //" -e 's,\([^A-Za-z0-9_+\.\~\/-]\),\\\&,g'`
+		# echo "Quoted arg($i)=\"$arg\""
+
+		commandline="$commandline $arg"
+	fi
+	i=$((i + 1))
+done
+
+set $commandline
+# Throw away $0 so that we don't parse the qsub-run command as if it was the first user-argument, since
+# that would cause an infinite loop
+shift
+parse $*
+
+
+#########################################################################
+# Optionsblock
+# If the user specified options (with "-s" or "--sge") to be passed verbatim to qsub,
+# then include them in the header block at the beginning of the submit script. Preface
+# each option with "#$" and put each option on a new line
+if [ ${#SGEOPTS[@]} -gt 0 ] ; then
+	count=${#SGEOPTS[@]}
+	index=0
+	while [ $index -lt $count ];
+	do
+		OPTIONSBLOCK="#$ ${SGEOPTS[$index]}$OPTIONSBLOCK"
+		index=$((index + 1))
+	done
+	OPTIONSBLOCK="# User-supplied options to qsub-run, passed as-is to qsub:$OPTIONSBLOCK"
+	OPTIONSBLOCK=`echo $OPTIONSBLOCK| sed -e "s/$//" | tr "" "\012"`
+fi
+#########################################################################
+
+
+#########################################################################
+
+COMMENT="#$"
+if [ -z "$MAILTO"  ] ; then
+	echo "Could not determine email address for user \"$USER\"" 1>&2
+	if [ $createscript = "yes"  ] ; then
+		MAILTO="email_address_for_sending_job_status_messages@host.domain"
+		COMMENT="#REMOVE_THIS_STRING_TO_ENABLE_MAIL$"
+	else
+		# qsub-run was called to submit a job, set MAILBLOCK to NULL since
+		# the mailing address could not be determined
+		MAILBLOCK=""
+	fi
+fi
+
+# Now expand MAILBLOCK, based on the (possibly updated) value of MAILTO
+MAILBLOCK=`eval echo $MAILBLOCK`
+# Convert % back to #
+MAILBLOCK=`echo $MAILBLOCK | tr "%" "#"`
+# Convert + back to \n
+MAILBLOCK=`echo $MAILBLOCK | tr "+" "\012"`
+
+command=${userargs%% *}	# split up the command and arguments, for future use of 
+set $userargs	# set $* to $userargs
+shift
+args=$@		# $command in the output file names
+STDOUT="$OUTDIR/${command##*/}.\$JOB_ID.stdout"
+STDERR="$OUTDIR/${command##*/}.\$JOB_ID.stderr"
+
+# Set the job name for use with "qsub -N"
+jobname="${command##*/}"
+echo $jobname | grep -q '^[^A-Za-z]'
+if [ $? = 0 ] ; then
+	# the $jobname begins with a non-alphabetic character
+	# qsub doesn't like job names that don't begin with a letter...
+	# but the name of the executable in this case doesn't start with
+	# a letter...prepend the job name with something to please qsub
+	jobname="cmd-$jobname"
+fi
+
+
+# sanity check
+# does the command have a directory path (relative or absolute)?
+echo $command | grep -q "/"
+if [ $? != 0 ] ; then
+	# no path....see if $arg exists in the PATH environment variable
+	pathtocmd=`which $command 2> /dev/null`
+	if [ ! -z "$pathtocmd" ] ; then
+		# we've found an instance of an executable named "$command" in the
+		# user's PATH environment....set $command to that
+		command=$pathtocmd
+	else
+		# no executable found...cannot continue
+		usage "The supplied executable \"$arg\" was not found in the PATH environment variable"
+		exit 1
+	fi
+else
+	# The supplied command had a path...is there an executable there?
+	if [ ! -x $command ] ; then
+		usage "The supplied command: \"$command\" does not exist or is not executable"
+		exit 1
+	fi
+fi
+
+
+
+if [ $createscript = "yes" ] ; then
+	# if the user chose to create the shell script, then
+	# don't submit it via qsub, but send it to stdout with "cat"
+	QSUB="cat"
+else
+	# Only check & possibly create the output directory if we're really submitting the job to qsub
+	if [ ! -d $OUTDIR ] ; then
+		mkdir -p $OUTDIR
+		checkandexit $? "Could not create $OUTDIR to store standard output and error output from queued jobs"
+	fi
+	QSUB="$QSUB -N $jobname"
+fi
+
+cat - << E-O-SUBMIT | $QSUB -- -
+#! /bin/bash
+#
+# This script has been created to run the $command 
+# command and is designed to be run via qsub, as in:
+#		qsub /path/to/scriptname
+#
+# The script can be customized as needed.
+#
+################################## START OF EMBEDDED SGE COMMANDS #######################
+### SGE will read options that are treated by the shell as comments. The
+### SGE parameters must begin with the characters "#$", followed by the
+### option.
+###
+### There should be no blank lines or non-comment lines within the block of
+### embedded "qsub" commands.
+###
+############################ Stadard parameters to the "qsub" command ##########
+#### Set the shell (under SGE).
+#$ -S $SGESHELL
+####
+#### save the standard output. By default, the output will be saved into your
+#### home directory. The "-o" option lets you specify an alternative directory.
+#$ -o $STDOUT
+#### save the standard error:
+#$ -e $STDERR
+####
+##################################
+#### Optional SGE "qsub" parameters that could be used to customize
+#### the submitted job. In each case, remove the string:
+####		REMOVE_THIS_STRING_TO_ENABLE_OPTION
+#### but leave the characters:
+#### 		#$
+#### at the beginning of the line.
+####
+####
+### Indicate that the job is short, and will complete in under 15 minutes so
+### that SGE can give it priority.
+### 	WARNING! If the job takes more than 15 minutes it will be killed.
+#REMOVE_THIS_STRING_TO_ENABLE_OPTION$ -l short
+####
+####
+#### Request that the job be given 6 "slots" (CPUS) on a single server instead
+#### of 1. You MUST use this if your program is multi-threaded, you should NOT
+#### use it otherwise. Most jobs are not multi-threaded and will not need this
+#### option.
+#REMOVE_THIS_STRING_TO_ENABLE_OPTION$ -pe threaded 6
+####
+####
+####
+#### Request that the job only run on a node that has at least 15GB of RAM free.
+#### If your analysis will require a lot of memory, set this option.
+####  *** This is optional, and helps SGE determine where to run jobs ***
+#REMOVE_THIS_STRING_TO_ENABLE_OPTION$ -l mem_free=15G 
+####
+####
+####
+####
+#### 
+#### The "h_vmem" parameter gives the hard limit on the amount of memory
+#### that a job is allowed to use. As of May 6, 2011, that limit is
+#### 8GB. Please consult wit the SGE documentation on the Wiki for
+#### current informaiton.
+#### 
+#### In order to use more memory in a single job, you MUST set the
+#### "h_vmem" parameter. Jobs that exceed the "h_vmem" value (by even
+#### a single byte) will be automatically killed by the scheduler.
+#### 
+#### Setting the "h_vmem" parameter too high will reduce the number
+#### of machines available to run your job, or the number of instances
+#### that can run at once.
+#### 
+#### 
+#REMOVE_THIS_STRING_TO_ENABLE_OPTION$ -l h_vmem=8G
+#### 
+################################## END OF DEFAULT EMBEDDED SGE COMMANDS###################
+$OPTIONSBLOCK
+
+# Send some output to standard output (saved into the
+# file $STDOUT) and standard error (saved
+# into the file $STDERR) to make
+# it easier to diagnose queued commands
+
+/bin/echo "Command: $command"
+/bin/echo "Arguments: $args"
+/bin/echo -e "Executing in: \c"; pwd
+/bin/echo -e "Executing on: \c"; hostname
+/bin/echo -e "Executing at: \c"; date
+/bin/echo "----- STDOUT from $command below this line -----"
+
+/bin/echo "Command: $command" 1>&2
+/bin/echo "Arguments: $args" 1>&2
+( /bin/echo -e "Executing in: \c"; pwd ) 1>&2
+( /bin/echo -e "Executing on: \c"; hostname ) 1>&2
+( /bin/echo -e "Executing at: \c"; date ) 1>&2
+/bin/echo "----- STDERR from $command below this line -----" 1>&2
+
+$command $args
+E-O-SUBMIT
+
+case $QSUB in
+	qsub*)
+		echo "STDOUT will be written to ${OUTDIR}/${command##*/}.\$JOBID.stdout "
+		echo "STDERR will be written to ${OUTDIR}/${command##*/}.\$JOBID.stderr "
+		;;
+esac
