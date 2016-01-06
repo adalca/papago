@@ -7,10 +7,10 @@ warning off backtrace; % turn off backtrace for warnings.
 warning off verbose;
 
 %% PATH Settings
-if ispc
+if ispc % adrian
     TOOLBOXES_PATH = 'C:/Users/adalca/Dropbox (Personal)/MATLAB/toolboxes';
     SYNTHESIS_DATA_PATH = 'D:/Dropbox (MIT)/Research/patchSynthesis/data/'; % synthetic processed data
-    GENERAL_DATA_PATH = 'D:/Dropbox (MIT)/Research/generalData'; % original data, algo won't tough
+    GENERAL_DATA_PATH = 'D:/Dropbox (MIT)/Research/generalData'; % original data
     OUTPUT_PATH = 'D:/Dropbox (MIT)/Research/patchSynthesis/output/subspace';
     
 else
