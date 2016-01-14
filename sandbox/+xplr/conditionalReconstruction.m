@@ -126,3 +126,5 @@ subplot(2, 3, 4); imagesc(patchview.reshapeto2D(reconPatch_gt));   title('our re
 subplot(2, 3, 5); imagesc(patchview.reshapeto2D(reconPatch_sg));   title('our recon single gaussian');
 subplot(2, 3, 6); imagesc(patchview.reshapeto2D(reconPatch_kg));   title('our recon gmm');
 colormap gray;
+
+%% TODO: compare logp in this manner with others.
