@@ -2,14 +2,14 @@
 setup
 
 %% parameters
-atlPatchSize = [9 9 9];
-atlLoc = LOC_LEFT_CORTEX; %LOC_VENTRICLE_EDGE; % LOC_LEFT_CORTEX+10; %LOC_VENTRICLE_EDGE; %LOC_LEFT_CORTEX;
+atlPatchSize = ones(1, 3) * 9; 
+atlLoc = LOC_VENTRICLE_EDGE; %LOC_VENTRICLE_EDGE; % LOC_LEFT_CORTEX+10; %LOC_VENTRICLE_EDGE; %LOC_LEFT_CORTEX;
 
 gmmmethod = 'groundtruth'; % 'compute', 'load', 'groundtruth'
 method = 'inverse'; % 'forward', 'inverse'
 regVal = 1e-4; % regulaization to the diagonal of subjSigma, if using method forward
 
-subject = 7; %1, 3
+subject = 3; %1, 3
 
 %% load volumes
 % we'll use some local, small subset, of the buckner data for now.
@@ -53,119 +53,76 @@ atlMu = zeros(atlPatchSize);
 atlSigma = atlPatch(:) * atlPatch(:)' + eye(prod(atlPatchSize)) * regVal;
 
 % reconstruct
-[reconPatch, logp, subjPatchLoc] = paffine.recon(atlMu, atlSigma, atlLoc, atlPatchSize, subjVol, subjWeightVol, atlLoc2SubjSpace, method, extraReconArg);
+reconPatch_gt = paffine.recon(atlMu, atlSigma, atlLoc, atlPatchSize, ...
+    subjVol, subjWeightVol, atlLoc2SubjSpace, method, extraReconArg);
 
-% look at "true" patch
-initSubjPatch = cropVolume(dsmasknii.img, subjPatchLoc, subjPatchLoc + size(reconPatch) - 1);
-initSubjPatch(isnan(reconPatch)) = nan;
-correctSubjPatch = cropVolume(subjisonii.img, subjPatchLoc, subjPatchLoc + size(reconPatch) - 1);
-correctSubjPatch(isnan(reconPatch)) = nan;
+%% load data column
+% load *ground truth* data column
+atlasesDataSetup; % atlases
+BUCKNER_PATH_ORIG = fullfile(BUCKNER_PATH, 'orig'); % original files
+BUCKNER_PATH_PROC = fullfile(SYNTHESIS_DATA_PATH, 'buckner/proc'); % buckner processing 
+md = restorationmd(dsAmounts, BUCKNER_PATH_PROC, SYNTHESIS_DATA_PATH, 'buckner');
+[col, layeridx, volidx] = subspacetools.md2patchcol(md, 'brainIso2Ds5Us5size', atlPatchSize, atlLoc, [2, 2, 2]);
+col(volidx == subject, :) = [];
 
-view3Dopt(correctSubjPatch, reconPatch, initSubjPatch)
+%% single - gaussian estimation
+gmm = fitgmdist(col, 1);
+atlMu = gmm.mu(:)';
+atlSigma = gmm.Sigma + eye(prod(atlPatchSize)) * regVal;
 
-% quick visualization
-subplot(1, 3, 1); imagesc(patchview.reshapeto2D(correctSubjPatch)); 
-subplot(1, 3, 2); imagesc(patchview.reshapeto2D(reconPatch));
-subplot(1, 3, 3); imagesc(patchview.reshapeto2D(initSubjPatch));
-colormap gray;
+reconPatch_sg = paffine.recon(atlMu, atlSigma, atlLoc, atlPatchSize, ...
+    subjVol, subjWeightVol, atlLoc2SubjSpace, method, extraReconArg);
 
+%% gaussian mixture model
+% learn a gaussian mixture model with K clusters from the *true* isotropic data, 
+% minus this subject.
+K = 5;
+gmmopt = statset('Display', 'iter', 'MaxIter', 20, 'TolFun', 0.001);
 
+% compute the gaussian mixture model
+tic
+gmm = fitgmdist(col, K, 'regularizationValue', regVal, 'replicates', 10, 'Options', gmmopt);
+fprintf('Gaussian mixture model took %3.3f sec\n', toc);
 
-
-
-%% compute/load gaussian parameters and estimate unknown pixel values
-
-switch gmmmethod
-    case 'compute' % compute the covariance from a patch column
-        
-%         % padding for extracting patches from volume
-%         locpad = [3 3 3];
-%         
-%         if ~exist('niis', 'var'); load('data/bucknerNiis_5_5.mat'); end
-%         [isopatches, isopatchidx] = subspacetools.nii2patchcol(niis.iso, atlPatchSize, atlLoc, locpad);
-%         
-%         % fit gaussian distrubtion (1 cluster)
-%         gmm = gmdistribution.fit(isopatches,1);
-%         
-%         [newPatch, subLocation, newPatchFull] = maximizeRotConditional( gmm.mu, gmm.Sigma, atlLoc, locPatchAtlas, movingVol, dsmasknii.img, subjLoc2AtlSpace, method, regVal);
-%         
-    case 'load'
-        
-        wgmmload = load('iso_wgmm_for_katie.mat');
-        gmm = wgmmload.isowgmmm3;
-        
-%         wgmmload = load('wgmm_for_katie.mat');
-%         gmm = wgmmload.dswgmmm3;
-        
-        % extract patch and associated weights
-        atlasPatch = fixedVol(volRange{:});
-        weightPatch = dsmaskregnii.img(volRange{:});
-        weightPatch(weightPatch < 0.001) = 0.001;
-        
-        % determine the best cluster for the given patch
-        logp = gmm.logpost(atlasPatch(:)', weightPatch(:)');
-        [~, clust] = max(logp);
-        
-        [newPatch, subLocation, newPatchFull] = ...
-            maximizeRotConditional(gmm.mu(clust,:), gmm.sigma(:,:,clust), atlLoc, ...
-            locPatchAtlas, movingVol, dsmasknii.img, subjLoc2AtlSpace, method, regVal);
-        
-    case 'groundtruth'
-        
-        if ~exist('niis', 'var'); load('data/bucknerNiis_5_5.mat'); end
-        atlasPatch = niis.iso{subject}.img(volRange{:});
-        weightPatch = niis.mask{subject}.img(volRange{:});
-        
-        % computer ground truth Sigma in atlas space from iso data 
-        Sigma = atlasPatch(:)*atlasPatch(:)';
-        mu = zeros(1,numel(atlasPatch));
-        
-%         [newPatch, subLocation, newPatchFull] = ...
-%             maximizeRotConditional(mu, Sigma, location, locPatchAtlas, movingVol, dsmasknii.img, ...
-%             locVolumeSubject, sigmaMethod, regVal);   
-        [newPatch, subLocation, newPatchFull] = ...
-            maximizeRotConditional(mu, Sigma, atlLoc, locPatchAtlas, double(dsnii.img), dsmasknii.img, ...
-            subjLoc2AtlSpace, method, regVal);   
-        
+% reconstruct
+% TODO: really, we should only be computing logp, not the reconstruction!
+logps = zeros(1, K);
+reconPatches = cell(1, K);
+subjPatchLocs = cell(1, K);
+for k = 1:K
+    atlMu = gmm.mu(k, :)';
+    atlSigma = gmm.Sigma(:, :, k) + eye(prod(atlPatchSize)) * regVal;
+    
+    [reconPatches{k}, logps(k), subjPatchLocs{k}] = paffine.recon(atlMu, atlSigma, atlLoc, atlPatchSize, ...
+        subjVol, subjWeightVol, atlLoc2SubjSpace, method, extraReconArg);
 end
 
-% extract ground truth patch in subject space
-volRangeSubj = arrayfunc(@(x, p) (x: x + p - 1)', subLocation, size(newPatch));
-realIsoPatch = movingVol(volRangeSubj{:}); 
-realIsoPatchwNans = realIsoPatch;
-realIsoPatchwNans(isnan(newPatchFull)) = nan;
+% get the optimal patch reconstruction
+[~, clust] = max(logps);
+reconPatch_kg = reconPatches{clust};
+subjPatchLoc = subjPatchLocs{clust};
 
-lininterpPatch = dsnii.img(volRangeSubj{:});
-lininterpPatch(isnan(newPatchFull)) = nan;
+%% visualize and compare
+subjPatchSize = size(reconPatch_gt);
 
-% visualize
-figure(); 
-subplot(411); imagesc(subspacetools.reshapeN3Dto2D(realIsoPatchwNans(:)', size(newPatch)), [0 1]); colormap gray; title('Ground Truth');
-subplot(412); imagesc(subspacetools.reshapeN3Dto2D(newPatchFull(:)', size(newPatch)), [0 1]); colormap gray; title('Full Patch With Known Pixel Intensities'); 
-subplot(413); imagesc(subspacetools.reshapeN3Dto2D(newPatch(:)', size(newPatch)), [0 1]); colormap gray;  title('Patch with Only Estimated Pixel Intensities'); 
-subplot(414); imagesc(subspacetools.reshapeN3Dto2D(lininterpPatch(:)', size(newPatch)), [0 1]); colormap gray;  title('Interpolated Patch in Subj Space'); 
+% compare subject patches for: true isotropic volume, linear interpolation, mask.
+dsSubjPatch = cropVolume(dsnii.img, subjPatchLoc, subjPatchLoc + subjPatchSize - 1);
+dsSubjPatch(isnan(reconPatch)) = nan;
+maskSubjPatch = cropVolume(dsmasknii.img, subjPatchLoc, subjPatchLoc + subjPatchSize - 1);
+maskSubjPatch(isnan(reconPatch)) = nan;
+correctSubjPatch = cropVolume(subjisonii.img, subjPatchLoc, subjPatchLoc + subjPatchSize - 1);
+correctSubjPatch(isnan(reconPatch)) = nan;
 
-%% compare with behaviour of recon
-isoPatch = niis.iso{subject}.img(volRange{:});
-dsPatch = niis.ds{subject}.img(volRange{:});
-weightPatch = niis.mask{subject}.img(volRange{:});
-weightPatch(weightPatch < 0.001) = 0.001;
-wgmmload = load('iso_wgmm_for_katie.mat');
-gmm = wgmmload.isowgmmm3;
-rpatches = papago.recon(gmm, dsPatch(:)', weightPatch(:)', 'eig', 95);
-rpatches = reshape(rpatches, atlPatchSize);
+% 3D visualization
+view3Dopt(correctSubjPatch, maskSubjPatch, dsSubjPatch, ...
+    reconPatch_gt, reconPatch_sg, reconPatch_kg);
 
-% visualize
-figure(); 
-subplot(411); imagesc(subspacetools.reshapeN3Dto2D(isoPatch(:)', atlPatchSize), [0 1]); colormap gray; title('Ground Truth');
-subplot(412); imagesc(subspacetools.reshapeN3Dto2D(rpatches(:)', atlPatchSize), [0 1]); colormap gray; title('Full Patch With Known Pixel Intensities'); 
-subplot(414); imagesc(subspacetools.reshapeN3Dto2D(dsPatch(:)', atlPatchSize), [0 1]); colormap gray;  title('Interpolated Patch in Subj Space'); 
-
-%%
-% 
-% brainmoved = imwarp(isonii.img, rMoving, tform, 'linear', 'OutputView', rFixed);
-% brainmovedback = imwarp(brainmoved, rFixed, tform.invert, 'linear', 'OutputView', rMoving);
-% 
-% realIsoPatchRerotated = brainmovedback(volRangeSubj{:});
-% % subplot(414); imagesc(subspacetools.reshapeN3Dto2D(realIsoPatchRerotated(:)', size(newPatch)), [0 1]); colormap gray; title('Ground Truth Rotated and Back');
-% 
+% 2D visualization
+figuresc();
+subplot(2, 3, 1); imagesc(patchview.reshapeto2D(correctSubjPatch)); title('true');
+subplot(2, 3, 2); imagesc(patchview.reshapeto2D(maskSubjPatch)); title('mask');
+subplot(2, 3, 3); imagesc(patchview.reshapeto2D(dsSubjPatch));  title('linear interp');
+subplot(2, 3, 4); imagesc(patchview.reshapeto2D(reconPatch_gt));   title('our recon groundtruth');
+subplot(2, 3, 5); imagesc(patchview.reshapeto2D(reconPatch_sg));   title('our recon single gaussian');
+subplot(2, 3, 6); imagesc(patchview.reshapeto2D(reconPatch_kg));   title('our recon gmm');
+colormap gray;

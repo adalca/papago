@@ -19,12 +19,13 @@ function logP = logpSubjPatch(subjPatch, subjWeightPatch, subjPatchValidRegion, 
     subjPatchWithNans(~subjWeightPatch) = nan;
     subjPatchAtlVoxels = subjPatchWithNans(subjPatchValidRegion);
 
+    selSubjMu = subjMu(subjPatchValidRegion);
+    selSubjSigma = subjSigma(subjPatchValidRegion, subjPatchValidRegion);
+    
     % compute inv(B) * b, where b is the vector of mean-centered known and valid voxels, and B is
     % the covariance of those voxels.
     valid = ~isnan(subjPatchAtlVoxels);
-    selSubjMu = subjMu(subjPatchValidRegion);
     b = (subjPatchAtlVoxels(valid) - selSubjMu(valid));
-    selSubjSigma = subjSigma(subjPatchValidRegion, subjPatchValidRegion);
     B = selSubjSigma(valid, valid);
     
     % compute inv(B) * b
@@ -33,5 +34,6 @@ function logP = logpSubjPatch(subjPatch, subjWeightPatch, subjPatchValidRegion, 
     end
         
     % compute the log probability
+    % logP = logmvnpdf(subjPatchAtlVoxels(valid)', selSubjMu(valid)', B);
     logP = -numel(b)/2 * log(2*pi) - 0.5 * logdet(B) - 0.5 * b' * invBb;
     
