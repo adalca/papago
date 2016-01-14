@@ -32,8 +32,17 @@ function logP = logpSubjPatch(subjPatch, subjWeightPatch, subjPatchValidRegion, 
     if nargin <= 5
         invBb = B \ b;
     end
-        
+    
     % compute the log probability
     % logP = logmvnpdf(subjPatchAtlVoxels(valid)', selSubjMu(valid)', B);
-    logP = -numel(b)/2 * log(2*pi) - 0.5 * logdet(B) - 0.5 * b' * invBb;
+    
+    term1 = -numel(b)/2 * log(2*pi); 
+    term2 = - 0.5 * logdet(B);
+    term3 = - 0.5 * b' * invBb;
+    logP = term1 + term2 + term3;
+    
+    fprintf('%9.2f + %9.2f + %9.2f = %9.2f . X-mu: %9.2f, %9.2f\n', ...
+        term1, term2, term3, logP, ...
+        ssd(subjPatchAtlVoxels(valid), selSubjMu(valid)), ...
+        ssd(subjPatchAtlVoxels, selSubjMu));
     

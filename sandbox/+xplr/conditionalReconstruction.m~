@@ -98,7 +98,7 @@ for k = 1:K
 end
 
 % get the optimal patch reconstruction
-[~, clust] = max(log(gmm.ComponentProportion) + logps);
+[~, clust] = max(log(gmm.ComponentProportion + logps);
 reconPatch_kg = reconPatches{clust};
 subjPatchLoc = subjPatchLocs{clust};
 
