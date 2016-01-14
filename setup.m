@@ -19,10 +19,10 @@ else
     usrname = strtrim(spl{end}); 
     switch usrname
         case 'klbouman' % katie's local mac
-            TOOLBOXES_PATH = '/Users/klbouman/Desktop/Projects/medicalInpainting/';
+            TOOLBOXES_PATH = '/Users/klbouman/Research/medicalInpainting/';
             SYNTHESIS_DATA_PATH = '/Users/klbouman/Dropbox (MIT)/patchSynthesis/data/';
             GENERAL_DATA_PATH = '/Users/klbouman/Dropbox (MIT)/';
-            OUTPUT_PATH = '/Users/klbouman/Desktop/Projects/medicalInpainting/dump/';
+            OUTPUT_PATH = '/Users/klbouman/Research/medicalInpainting/dump/';
         
         case 'adalca'
             TOOLBOXES_PATH = '/data/vision/polina/users/adalca/patchSynthesis/subspace/latest/toolboxes/';
