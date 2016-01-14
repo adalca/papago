@@ -98,7 +98,7 @@ for k = 1:K
 end
 
 % get the optimal patch reconstruction
-[~, clust] = max(logps);
+[~, clust] = max(log(gmm.ComponentProportion) + logps);
 reconPatch_kg = reconPatches{clust};
 subjPatchLoc = subjPatchLocs{clust};
 
@@ -107,11 +107,11 @@ subjPatchSize = size(reconPatch_gt);
 
 % compare subject patches for: true isotropic volume, linear interpolation, mask.
 dsSubjPatch = cropVolume(dsnii.img, subjPatchLoc, subjPatchLoc + subjPatchSize - 1);
-dsSubjPatch(isnan(reconPatch)) = nan;
+dsSubjPatch(isnan(reconPatch_gt)) = nan;
 maskSubjPatch = cropVolume(dsmasknii.img, subjPatchLoc, subjPatchLoc + subjPatchSize - 1);
-maskSubjPatch(isnan(reconPatch)) = nan;
+maskSubjPatch(isnan(reconPatch_gt)) = nan;
 correctSubjPatch = cropVolume(subjisonii.img, subjPatchLoc, subjPatchLoc + subjPatchSize - 1);
-correctSubjPatch(isnan(reconPatch)) = nan;
+correctSubjPatch(isnan(reconPatch_gt)) = nan;
 
 % 3D visualization
 view3Dopt(correctSubjPatch, maskSubjPatch, dsSubjPatch, ...
