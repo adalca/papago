@@ -16,14 +16,16 @@ function logP = logpSubjPatch(subjPatch, subjWeightPatch, subjPatchValidRegion, 
 
      % get the part of the subject patch corresponding to the atlas patch
     subjPatchWithNans = subjPatch;
-    subjPatchWithNans(subjWeightPatch) = nan;
+    subjPatchWithNans(~subjWeightPatch) = nan;
     subjPatchAtlVoxels = subjPatchWithNans(subjPatchValidRegion);
 
     % compute inv(B) * b, where b is the vector of mean-centered known and valid voxels, and B is
     % the covariance of those voxels.
-    b = (subjPatchAtlVoxels(:) - subjMu);
     valid = ~isnan(subjPatchAtlVoxels);
-    B = subjSigma(valid, valid);
+    selSubjMu = subjMu(subjPatchValidRegion);
+    b = (subjPatchAtlVoxels(valid) - selSubjMu(valid));
+    selSubjSigma = subjSigma(subjPatchValidRegion, subjPatchValidRegion);
+    B = selSubjSigma(valid, valid);
     
     % compute inv(B) * b
     if nargin <= 5
@@ -31,5 +33,5 @@ function logP = logpSubjPatch(subjPatch, subjWeightPatch, subjPatchValidRegion, 
     end
         
     % compute the log probability
-    logP = -numel(b)/2 * log(2*pi) - 0.5 * logdet(B) - 0.5 * b * invBb;
+    logP = -numel(b)/2 * log(2*pi) - 0.5 * logdet(B) - 0.5 * b' * invBb;
     

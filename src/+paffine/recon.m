@@ -1,10 +1,11 @@
-function [reconPatch, logp] = recon(atlMu, atlSigma, atlLoc, atlPatchSize, subjVol, subjWeightVol, ...
-    atlLoc2SubjSpace, method, varargin)
+function [reconPatch, logp, subjPatchMins] = recon(atlMu, atlSigma, atlLoc, atlPatchSize, ...
+    subjVol, subjWeightVol, atlLoc2SubjSpace, method, varargin)
 % reconstruct a subject patch given the atlas
 %
 % srcLoc2TgtSpace is computed via
 %   srcLoc2TgtSpace = tform2cor3d(subj2Atl, size(subjVol), srcVoxDims, tgtVolSize, tgtVoxDims, dirn);
-
+%
+% TODO: use cropVolume to extract patch.
 
     % get the subject space coordinates
     [subjPatchRange, subjPatchMins, subjPatchSize] = ...
@@ -16,7 +17,7 @@ function [reconPatch, logp] = recon(atlMu, atlSigma, atlLoc, atlPatchSize, subjV
             
             % obtain R subj --> atl. R is |atl|-by-|subj|
             atlPatchRange = arrayfunc(@(a, p) a:p, atlLoc, atlPatchSize);
-            atlLoc2SubjSpacePatch = extractAndNormalizePatchCor(atlLoc2SubjSpace, atlPatchRange, atlLoc);
+            atlLoc2SubjSpacePatch = extractAndNormalizePatchCor(atlLoc2SubjSpace, atlPatchRange);
             [subj2AtlR, subjMask, ~] = cor2interpmat(subjPatchSize, atlLoc2SubjSpacePatch);
             
             % get the subject-space gaussian parameters
@@ -26,7 +27,7 @@ function [reconPatch, logp] = recon(atlMu, atlSigma, atlLoc, atlPatchSize, subjV
             subjLoc2AtlSpace = varargin{1};
             
             % obtain R atl --> subj. R is |subj|-by-|atl|
-            subjLoc2AtlSpacePatch = extractAndNormalizePatchCor(subjLoc2AtlSpace, subjPatchRange, subjPatchMins);
+            subjLoc2AtlSpacePatch = extractAndNormalizePatchCor(subjLoc2AtlSpace, subjPatchRange);
             [atl2SubjR, ~, subjMask] = cor2interpmat(atlPatchSize, subjLoc2AtlSpacePatch);
             
             % get the subject-space gaussian parameters
@@ -43,11 +44,12 @@ function [reconPatch, logp] = recon(atlMu, atlSigma, atlLoc, atlPatchSize, subjV
     
     % compute the logp
     if nargout > 1
-        logp = logpSubjPatch(subjPatch, subjWeightPatch, subjMask, subjMu, subjSigma, invBb);
+        logp =0;% paffine.logpSubjPatch(subjPatch, subjWeightPatch, subjMask, subjMu, subjSigma, invBb);
     end
 end
 
-function patchCor = extractAndNormalizePatchCor(volCor, range, mins)
-    patchCor = cellfunc(@(x) x(range), volCor);
-    patchCor = cellfunc(@(x, m) x - m + 1, patchCor, mat2cellsplit(mins));
+function patchCor = extractAndNormalizePatchCor(volCor, range)
+    patchCor = cellfunc(@(x) x(range{:}), volCor);
+    patchCorMins = cellfunc(@(x) floor(min(x(:))), patchCor);
+    patchCor = cellfunc(@(x, m) x - m + 1, patchCor, patchCorMins);
 end

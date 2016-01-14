@@ -59,15 +59,16 @@ function [R, srcMask, tgtMask] = cor2interpmat(srcVolSize, varargin)
         % tgtLoc2SrcSpace(i) corresponding to ith target voxel. gridLim is 1-by-nDims, each entry is
         % 1-by-2.
         gridLim = cellfunc(@(f, c) [f(tgti), c(tgti)], floorTgtLoc2SrcSpace, ceilTgtLoc2SrcSpace);
+        gridLim = cellfunc(@(x) unique(x), gridLim);
         
         % get all the grid points
         gridPosCell = cellfunc(@(x) x(:), ndgrid2cell(gridLim{:}));
-        gridPos = cat(1, gridPosCell{:});
-        srcMask(gridPosCell{:}) = true; % this means that pixel *contributed*
+        gridPos = cat(2, gridPosCell{:});
         
         % check if all the grid points are actually within the source volume
         % if all grid poitns are 
-        if all(gridPos >= 1 & bsxfun(@le, gridPos, srcPatchSize))
+        if all(gridPos >= 1 & bsxfun(@le, gridPos, srcVolSize))
+            srcMask(gridPosCell{:}) = true; % this means that pixel *contributed*
             tgtMask(tgti) = true;
             
             % compute the relative source cube position compared to the actual (double-precision)
@@ -78,11 +79,12 @@ function [R, srcMask, tgtMask] = cor2interpmat(srcVolSize, varargin)
             % write R: for each source point on the grid, take the product of (1 - dst-to-pt)
             srci = sub2ind(srcVolSize, gridPosCell{:}); 
             
-            % upate sparse R constructs
-            idx = 2^nDims * (tgiti-1) + (1:2^nDims);
+            % update sparse R constructs
+            idx = 2^nDims * (tgti-1) + (1:2^nDims);
+            idx = idx(1:numel(srci));
             Rivec(idx) = tgti;
             Rjvec(idx) = srci;
-            Rvec(idx) = prod(1 - abs(relativeGridPos)); % linear interpolation
+            Rvec(idx) = prod(1 - abs(relativeGridPos), 2); % linear interpolation
         end
     end
     
@@ -90,7 +92,7 @@ function [R, srcMask, tgtMask] = cor2interpmat(srcVolSize, varargin)
     Rvec(Rivec==0) = [];
     Rjvec(Rivec==0) = [];
     Rivec(Rivec==0) = [];
-    R = sparse(Rivec, Rjvec, Rvec);
+    R = sparse(Rivec, Rjvec, Rvec, prod(tgtVolSize), prod(srcVolSize));
 end
 
 function [srcVolSize, tgtVolSize, tgtLoc2SrcSpace] = parseInputs(srcVolSize, varargin)

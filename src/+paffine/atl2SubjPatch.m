@@ -22,10 +22,10 @@ function [subjPatchRange, mins, subjPatchSize] = atl2SubjPatch(atlasLoc, atlPatc
     idx = sub2ind(size(atlLoc2SubjSpace{1}), atlasPatchRangeGrid{:});
 
     % compute the patch limits in subject space
-    mins = floor(min(cellfun(@(x) x(idx(:)), atlLoc2SubjSpace)));
-    maxs = ceil(max(cellfun(@(x) x(idx(:)), atlLoc2SubjSpace)));
+    mins = cellfun(@(x) floor(min(x(idx(:)))), atlLoc2SubjSpace);
+    maxs = cellfun(@(x) ceil(max(x(idx(:)))), atlLoc2SubjSpace);
     
     % compute the final range
     subjPatchRange = arrayfunc(@(mi, ma) mi:ma, mins, maxs);
-    subjPatchSize = ma-mi+1;
+    subjPatchSize = maxs - mins + 1;
     

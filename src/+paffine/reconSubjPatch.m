@@ -14,11 +14,13 @@ function [reconPatch, invBb] = reconSubjPatch(subjPatch, subjWeightPatch, subjPa
 
     % get the part of the subject patch corresponding to the atlas patch
     subjPatchWithNans = subjPatch;
-    subjPatchWithNans(subjWeightPatch) = nan;
+    subjPatchWithNans(~subjWeightPatch) = nan;
     subjPatchAtlVoxels = subjPatchWithNans(subjPatchValidRegion);
     
     % impute the voxels
-    [subjPatchAtlReconVoxels, invBb] = inpaintWithGaussConditional(subjPatchAtlVoxels(:), subjMu, subjSigma);
+    selSubjMu = subjMu(subjPatchValidRegion);
+    selSubjSigma = subjSigma(subjPatchValidRegion, subjPatchValidRegion);
+    [subjPatchAtlReconVoxels, invBb] = inpaintWithGaussConditional(subjPatchAtlVoxels(:), selSubjMu, selSubjSigma);
     
     % recon the subject patch
     reconPatch = nan(size(subjPatch));

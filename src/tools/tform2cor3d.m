@@ -22,7 +22,7 @@ function srcLoc2TgtSpace = tform2cor3d(tform, srcVolSize, srcVoxDims, tgtVolSize
 % >> tform = imtform(subj, subjRef, atlas, atlasRef, ...)
 % we can do:
 % >> subjLoc2AtlSpace = tform2cor3d(tform, size(subj), subjVoxDims, size(atlas), atlasVoxDims);
-% >> atlLoc2SubjSpace = tform2cor3d(tform.inverse, size(atlas), atlasVoxDims, size(subj), subjVoxDims);
+% >> atlLoc2SubjSpace = tform2cor3d(tform.invert, size(atlas), atlasVoxDims, size(subj), subjVoxDims);
 
     % check inputs and set invert default to false.
     narginchk(5, 6);
@@ -41,17 +41,21 @@ function srcLoc2TgtSpace = tform2cor3d(tform, srcVolSize, srcVoxDims, tgtVolSize
         % go from source intrinsic coordinates to target intrinsic coordinates:
         [wx, wy, wz] = srcRef.intrinsicToWorld(srcPos{2}, srcPos{1}, srcPos{3});
         [xx, yy, zz] = transformPointsForward(tform, wx, wy, wz);
-        srcLoc2TgtSpace = tgtRef.worldToIntrinsic(xx, yy, zz);
-        srcLoc2TgtSpace = srcLoc2TgtSpace(:, [2, 1, 3]);
+        srcLoc2TgtSpace = zeros(prod(srcVolSize), 3);
+        [srcLoc2TgtSpace(:, 2), srcLoc2TgtSpace(:, 1), srcLoc2TgtSpace(:, 3)]  = ...
+            tgtRef.worldToIntrinsic(xx, yy, zz);
 
         % take out any rows with coordinates outside of the volume
         srcLoc2TgtSpace(srcLoc2TgtSpace < 1 | bsxfun(@gt, srcLoc2TgtSpace, tgtVolSize)) = nan; 
         srcLoc2TgtSpace(any(isnan(srcLoc2TgtSpace), 2), :) = nan; 
 
         % reshape the volume and place into cell array
-        srcLoc2TgtSpace = cellfunc(@(x) reshape(x, srcVolSize), dimsplit(1, srcLoc2TgtSpace));
-    else
+        srcLoc2TgtSpace = cellfunc(@(x) reshape(x, srcVolSize), dimsplit(2, srcLoc2TgtSpace));
         
+    else
         assert(strcmp(dirn, 'backward'));
-        srcLoc2TgtSpace = tform2cor3d(tform.inverse, tgtVolSize, tgtVoxDims, srcVolSize, srcVoxDims);
+        srcLoc2TgtSpace = tform2cor3d(tform.invert, tgtVolSize, tgtVoxDims, srcVolSize, srcVoxDims);
     end
+
+    assert(all(cellfun(@(x) all(x(:) >= 1 | isnan(x(:))), srcLoc2TgtSpace)), ...
+        'output has coordinates beyond limits');
