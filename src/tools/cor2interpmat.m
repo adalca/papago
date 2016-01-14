@@ -59,7 +59,14 @@ function [R, srcMask, tgtMask] = cor2interpmat(srcVolSize, varargin)
         % tgtLoc2SrcSpace(i) corresponding to ith target voxel. gridLim is 1-by-nDims, each entry is
         % 1-by-2.
         gridLim = cellfunc(@(f, c) [f(tgti), c(tgti)], floorTgtLoc2SrcSpace, ceilTgtLoc2SrcSpace);
-        gridLim = cellfunc(@(x) unique(x), gridLim);
+        
+        % make sure we don't have an actual integer value, and if we do, only use that point once.
+        % Note: we shouldn't just use unique() as that is very slow over so many calls. Check first
+        % if needed.
+        isEqual = cellfun(@(x) x(1) == x(2), gridLim);
+        if any(isEqual)
+            gridLim = cellfunc(@(x) unique(x), gridLim);
+        end
         
         % get all the grid points
         gridPosCell = cellfunc(@(x) x(:), ndgrid2cell(gridLim{:}));

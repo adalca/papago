@@ -14,10 +14,11 @@ function [reconPatch, logp, subjPatchMins] = recon(atlMu, atlSigma, atlLoc, atlP
     switch method
         case {'forward', 'modelingFwd', 'forward-model'}
             regVal = varargin{1};
+            warning('untested');
             
             % obtain R subj --> atl. R is |atl|-by-|subj|
-            atlPatchRange = arrayfunc(@(a, p) a:p, atlLoc, atlPatchSize);
-            atlLoc2SubjSpacePatch = extractAndNormalizePatchCor(atlLoc2SubjSpace, atlPatchRange);
+            atlPatchRange = arrayfunc(@(a, p) a:p, atlLoc, atlLoc + atlPatchSize - 1);
+            atlLoc2SubjSpacePatch = extractAndNormalizePatchCor(atlLoc2SubjSpace, atlPatchRange, subjPatchMins);
             [subj2AtlR, subjMask, ~] = cor2interpmat(subjPatchSize, atlLoc2SubjSpacePatch);
             
             % get the subject-space gaussian parameters
@@ -27,7 +28,7 @@ function [reconPatch, logp, subjPatchMins] = recon(atlMu, atlSigma, atlLoc, atlP
             subjLoc2AtlSpace = varargin{1};
             
             % obtain R atl --> subj. R is |subj|-by-|atl|
-            subjLoc2AtlSpacePatch = extractAndNormalizePatchCor(subjLoc2AtlSpace, subjPatchRange);
+            subjLoc2AtlSpacePatch = extractAndNormalizePatchCor(subjLoc2AtlSpace, subjPatchRange, atlLoc);
             [atl2SubjR, ~, subjMask] = cor2interpmat(atlPatchSize, subjLoc2AtlSpacePatch);
             
             % get the subject-space gaussian parameters
@@ -44,12 +45,11 @@ function [reconPatch, logp, subjPatchMins] = recon(atlMu, atlSigma, atlLoc, atlP
     
     % compute the logp
     if nargout > 1
-        logp =0;% paffine.logpSubjPatch(subjPatch, subjWeightPatch, subjMask, subjMu, subjSigma, invBb);
+        logp = paffine.logpSubjPatch(subjPatch, subjWeightPatch, subjMask, subjMu, subjSigma, invBb);
     end
 end
 
-function patchCor = extractAndNormalizePatchCor(volCor, range)
+function patchCor = extractAndNormalizePatchCor(volCor, range, mins)
     patchCor = cellfunc(@(x) x(range{:}), volCor);
-    patchCorMins = cellfunc(@(x) floor(min(x(:))), patchCor);
-    patchCor = cellfunc(@(x, m) x - m + 1, patchCor, patchCorMins);
+    patchCor = cellfunc(@(x, m) x - m + 1, patchCor, mat2cellsplit(mins));
 end
