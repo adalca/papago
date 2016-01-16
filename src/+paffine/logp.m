@@ -1,6 +1,6 @@
-function [reconPatch, subjPatchMins, logp] = recon(atlMu, atlSigma, atlLoc, atlPatchSize, ...
+function [logp, subjPatchMins] = logp(atlMu, atlSigma, atlLoc, atlPatchSize, ...
     subjVol, subjWeightVol, atlLoc2SubjSpace, method, varargin)
-% reconstruct a subject patch given the atlas
+% get the log of a patch in subject space using only known voxels within masked region within subject patch
 %
 % varargin is:
 %   <regVal> if method is forward 
@@ -19,10 +19,7 @@ function [reconPatch, subjPatchMins, logp] = recon(atlMu, atlSigma, atlLoc, atlP
     % reconstruct the patch
     subjPatch = cropVolume(subjVol, subjPatchMins, subjPatchMins + subjPatchSize - 1);
     subjWeightPatch = cropVolume(subjWeightVol, subjPatchMins, subjPatchMins + subjPatchSize - 1);
-    [reconPatch, invBb] = paffine.reconSubjPatch(subjPatch, subjWeightPatch, subjInterpMask, subjMu, subjSigma);
-    
-    % compute the logp
-    if nargout > 2
-        logp = paffine.logpSubjPatch(subjPatch, subjWeightPatch, subjInterpMask, subjMu, subjSigma, invBb);
-    end
+
+    % compute log
+    logp = paffine.logpSubjPatch(subjPatch, subjWeightPatch, subjInterpMask, subjMu, subjSigma, invBb);
 end
