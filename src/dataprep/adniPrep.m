@@ -28,12 +28,8 @@ switch getmdmethod
         
     case 'load'
         % get latest file
-        d = sys.fulldir([SYNTHESIS_DATA_PATH, name, '_restor_md_*']);
-        [~, idx] = sort(cellfun(@datenum, {d.date}), 'descend');
-        latestfile = d(idx).name;
+        md = loadmd([SYNTHESIS_DATA_PATH, name, '_restor_md_*']);
         
-        % load md
-        load(latestfile, 'md');
     case 'none'
         clear md
     otherwise

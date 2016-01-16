@@ -8,7 +8,7 @@ BUCKNER_PATH_PROC = fullfile(SYNTHESIS_DATA_PATH, 'buckner/proc'); % buckner pro
 
 % processing parameters
 moveOrig2Proc = false; % move initial files from original folder to processing folder
-getmdmethod = 'build'; % 'load', 'build', or 'none'
+getmdmethod = 'load'; % 'load', 'build', or 'none'
 name = 'buckner';
 domdproc = false; % already done.
 dsAmounts = 2:5;
@@ -27,12 +27,8 @@ switch getmdmethod
         md = restorationmd(dsAmounts, BUCKNER_PATH_PROC, SYNTHESIS_DATA_PATH, name);
     case 'load'
         % get latest file
-        d = sys.fulldir([SYNTHESIS_DATA_PATH, name, '_restor_md_*']);
-        [~, idx] = sort(cellfun(@datenum, {d.date}), 'descend');
-        latestfile = d(idx).name;
-        
-        % load md
-        load(latestfile, 'md');
+        md = loadmd([SYNTHESIS_DATA_PATH, name, '_restor_md_*']);
+
     case 'none'
         clear md
     otherwise
