@@ -1,10 +1,13 @@
-function [reconPatches, reconLocs] = subvolRecon(gmm, subvolLoc, subvolSize, atlPatchSize, crmethod, ...
-    dsSubjInAtl, dsSubjInAtlMask, dsSubj, dsSubjWeight, varargin)
+function [reconPatches, reconLocs] = subvolRecon(gmm, subvolLoc, subvolSize, atlPatchSize, ...
+    crmethod, keepk, dsSubjInAtl, dsSubjInAtlMask, dsSubj, dsSubjWeight, varargin)
 % reconstruct all patches within a subvolume
+% TODO: rename to subvolPatchRecon
 % 
-% subvolRecon(gmm, subvolloc, subvolSize, atlPatchSize, crmethod, dsSubjInAtlVol, dsSubjInAtlMaskVol, subjVol, subjWeightVol, atlLoc2SubjSpace, subjLoc2AtlSpace)
+% subvolRecon(gmm, subvolLoc, subvolSize, atlPatchSize, crmethod, keepk, ...
+%   dsSubjInAtlVol, dsSubjInAtlMaskVol, dsSubj, dsSubjWeight, atlLoc2SubjSpace, subjLoc2AtlSpace)
 %
-% subvolRecon(gmm, subvolloc, subvolSize, atlPatchSize, crmethod, dsSubjInAtlNii, dsSubjInAtlMaskNii, dsSubjNii, dsSubjWeightNii, tform)
+% subvolRecon(gmm, subvolLoc, subvolSize, atlPatchSize, crmethod, keepk, ...
+%   dsSubjInAtlNii, dsSubjInAtlMaskNii, dsSubjNii, dsSubjWeightNii, tform)
 %   
 % Currently uses atlas-space heuristic to get the optimal cluster and the conditional rotation
 % reconstruction method.
@@ -41,13 +44,16 @@ function [reconPatches, reconLocs] = subvolRecon(gmm, subvolLoc, subvolSize, atl
         end
         
         % get the optimal cluster via posteriors
-        [~, optk] = max(log(gmm.ComponentProportion) + logp);
+        logpost = log(gmm.ComponentProportion) + logp;
+        [~, optk] = sort(logpost, 'descend');
         
         % reconstruct in subject space
-        atlMu = gmm.mu(optk, :)';
-        atlSigma = gmm.Sigma(:, :, optk);
-        [reconPatches{i}, reconLocs{i}] = paffine.recon(atlMu, atlSigma, atlLoc, atlPatchSize, ...
-            dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, crmethod, extraReconArg);
+        for k = 1:keepk
+            atlMu = gmm.mu(optk(k), :)';
+            atlSigma = gmm.Sigma(:, :, optk(k));
+            [reconPatches{i, k}, reconLocs{i, k}] = paffine.recon(atlMu, atlSigma, atlLoc, ...
+                atlPatchSize, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, crmethod, extraReconArg);
+        end
     end 
 end
 

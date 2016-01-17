@@ -48,9 +48,10 @@ gmm = fitgmdist(bucknerIsoPatchCol, gmmK, 'regularizationValue', regVal, 'replic
 fprintf('Gaussian mixture model took %3.3f sec\n', toc);
 
 %% reconstruct patches in ADNI volume
+keepr = 1;
 subvolLoc = atlLoc - patchColPad;
 subvolSize = atlPatchSize + (2 * patchColPad + 1);
-[reconPatches, reconLocs] = papago.subvolRecon(gmm, subvolLoc, subvolSize, atlPatchSize, crmethod, ...
+[reconPatches, reconLocs] = papago.subvolRecon(gmm, subvolLoc, subvolSize, atlPatchSize, crmethod, keepr, ...
     dsSubjInAtlNii.img, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArg);
 
 %% quilt
@@ -66,3 +67,4 @@ subjWeightVolWNans(isnan(quiltedSubvol)) = nan;
 
 view3Dopt(isoSubjVol, subjWeightVolWNans, dsSubjVolWNans, quiltedSubvol, cntvol);
 
+%% TODO: try higher keepr and mrf (use subject space patches but setup mrf on atlas space)
