@@ -43,18 +43,18 @@ function [quiltedSubvol, minSubvolLoc, cntvol] = subvolRecon(gmm, subvolLoc, sub
         logp = zeros(1, K);
         for k = 1:K
             atlMu = gmm.mu(k, :)';
-            atlSigma = gmm.Sigma(:, :, k);
+            atlSigma = gmm.sigma(:, :, k);
             logp(k) = logmvnpdf(dsAtlPatch(:)' .* dsAtlMaskPatch(:)', atlMu(:)' .* dsAtlMaskPatch(:)', atlSigma);
         end
         
         % get the optimal cluster via posteriors
-        logpost = log(gmm.ComponentProportion) + logp;
+        logpost = log(gmm.pi) + logp;
         [~, optk] = sort(logpost, 'descend');
         
         % reconstruct in subject space
         for k = 1:keepk
             atlMu = gmm.mu(optk(k), :)';
-            atlSigma = gmm.Sigma(:, :, optk(k));
+            atlSigma = gmm.sigma(:, :, optk(k));
             [reconPatches{i, k}, reconLocs{i, k}] = paffine.recon(atlMu, atlSigma, atlLoc, ...
                 atlPatchSize, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, crmethod, extraReconArg);
         end
