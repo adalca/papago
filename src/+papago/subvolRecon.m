@@ -90,6 +90,3 @@ function [subjAtlVol, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2Sub
         extraReconArg = ifelse(strcmp(crmethod, 'inverse'), subjLoc2AtlSpace, regVal);
     end
 end
-
-
-
