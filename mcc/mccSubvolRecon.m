@@ -1,6 +1,6 @@
 function mccSubvolRecon(gmmFile, subvolFile, iniReconFile, ...
     dsSubjInAtlFile, dsSubjInAtlMaskFile, dsSubjFile, dsSubjWeightFile, ...
-    subjCorrFile)
+    subjCorrFile, subjoutFile)
 % for one subject, reconstruct all patches in a subvolume using a gmm
 % and combine the patches into a "reconstructed" subvolume via averages, 
 % along with the weights of the number of patches that voted at each location.
@@ -36,4 +36,4 @@ function mccSubvolRecon(gmmFile, subvolFile, iniReconFile, ...
         dsSubjWeightVol, atlLoc2SubjSpace, subjLoc2AtlSpace); %#ok<ASGLU>
 
     % save reconPatches.
-    save(subjoutfile, 'reconVol', 'reconLoc', 'reconWeight');
+    save(subjoutFile, 'reconVol', 'reconLoc', 'reconWeight');
