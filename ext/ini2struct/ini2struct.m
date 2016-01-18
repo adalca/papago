@@ -96,7 +96,7 @@ while ~feof(f)                          % and read until it ends
     end;
     if ( s(1)=='[' ) && (s(end)==']' )
         % We found section
-        CurrMainField = genvarname(lower(s(2:end-1)));
+        CurrMainField = genvarname(s(2:end-1));
         Result.(CurrMainField) = [];    % Create field in Result
     else
         % ??? This is not a section start
@@ -106,10 +106,10 @@ while ~feof(f)                          % and read until it ends
         if status, val = val_cand; end;
         if ~isempty(CurrMainField)
             % But we found section before and have to fill it
-            Result.(CurrMainField).(lower(genvarname(par))) = val;
+            Result.(CurrMainField).((genvarname(par))) = val;
         else
             % No sections found before. Orphan value
-            Result.(lower(genvarname(par))) = val;
+            Result.((genvarname(par))) = val;
         end
     end
 end
