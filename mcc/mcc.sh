@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
 # mcc files relevant to subspace restoration project.
+#
+# usage:
+# mcc relpath1 relpath2
+#
+# where relpath are paths relative to ${PROJECT_PATH}
+# Example:
+# >$ ./mcc mcc/mccTrain mcc/mccPrepareSubvols
 
 # prepare project and toolbox paths
 # if want to make current: "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 MAIN_PATH="/data/vision/polina/users/adalca/patchSynthesis"
 PROJECT_PATH="${MAIN_PATH}/subspace/"
 TOOLBOX_PATH="${MAIN_PATH}/toolboxes"
+EXTTOOLBOX_PATH="/data/vision/polina/users/adalca/MATLAB/external_toolboxes"
 
 # MCC-related paths
 MCCBUILD_PATH="${TOOLBOX_PATH}/mgt/src/mcc/" # mccBuild script path
@@ -15,13 +23,16 @@ MCC_RUN_DIR="/afs/csail.mit.edu/system/common/matlab/2013b/bin/mcc"
 export PATH="${MAIN_PATH}:$PATH"
 
 ## run mcc on desired (*.m) files.
-for filename in sgeTrain sgePrepareSubvols
+for pfilename in mccTrain mccPrepareSubvols
 do
+  filename=`basename ${pfilename}`
+
   # run via mccBuild.sh
   ${MCCBUILD_PATH}/mccBuild.sh \
     ${MCC_RUN_DIR} \
-    ${PROJECT_PATH}/clust/${filename}.m \
+    ${PROJECT_PATH}/${pfilename}.m \
     ${MAIN_PATH}/MCC/MCC_${filename} \
     ${PROJECT_PATH}/src/ \
-    ${TOOLBOX_PATH}
+    ${TOOLBOX_PATH} \
+    ${EXTTOOLBOX_PATH}
 done
