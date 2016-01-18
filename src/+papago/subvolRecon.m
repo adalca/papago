@@ -1,6 +1,10 @@
-function [reconPatches, reconLocs] = subvolRecon(gmm, subvolLoc, subvolSize, atlPatchSize, ...
+function [quiltedSubvol, minSubvolLoc, cntvol] = subvolRecon(gmm, subvolLoc, subvolSize, atlPatchSize, ...
     crmethod, keepk, dsSubjInAtl, dsSubjInAtlMask, dsSubj, dsSubjWeight, varargin)
-% reconstruct all patches within a subvolume
+% reconstruct all patches within a subvolume and return the quiltedSubvol
+% along with its location in the full volume (minSubvolLoc) and the number
+% of patches that were used in reconstruting each pixel in the
+% quiltedSubvol (cntvol)
+%
 % TODO: rename to subvolPatchRecon
 % 
 % subvolRecon(gmm, subvolLoc, subvolSize, atlPatchSize, crmethod, keepk, ...
@@ -55,6 +59,20 @@ function [reconPatches, reconLocs] = subvolRecon(gmm, subvolLoc, subvolSize, atl
                 atlPatchSize, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, crmethod, extraReconArg);
         end
     end 
+
+    
+    % determine what region of the subvolume is quilted using the reconPatches
+    reconLocsEnd = cellfunc(@(x, y) x  + size(y), reconLocs, reconPatches); 
+    minSubvolLoc = min(reshape([reconLocs{:}], [3 length(reconLocs)]), [],2)';
+    maxSubvolLoc = max(reshape([reconLocsEnd{:}], [3 length(reconLocs)]), [], 2)';
+    
+    % determine the size of the subvolume that will be quilted
+    subvolSize = maxSubvolLoc - minSubvolLoc + 1; 
+
+    % quilt the irregularly sized patches
+    modReconLocs = cellfunc(@(x) x - minSubvolLoc + 1, reconLocs);
+    [quiltedSubvol, cntvol] = patchlib.quiltIrregularPatches(modReconLocs, reconPatches, 'volSize', subvolSize);
+    
 end
 
 function [subjAtlVol, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArg] ...
