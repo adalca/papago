@@ -21,7 +21,7 @@ function md = restorationmd(dsAmounts, buildpath, savepath, name)
     md.addModality('proc', '%s_proc.nii.gz');
     md.addModality('matfile', '%s.mat');
     md.addRequiredModality('brain', '%s_brain.nii.gz');
-    md.addRequiredModality('seg', '%s_seg.nii.gz');
+    md.addModality('seg', '%s_seg.nii.gz');
     md.addModality('procBrain', '%s_proc_brain.nii.gz');
     md.addModality('procBrainSeg', '%s_proc_brain_seg.nii.gz');
     
