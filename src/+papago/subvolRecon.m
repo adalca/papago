@@ -34,8 +34,10 @@ function [quiltedSubvol, minSubvolLoc, cntvol] = subvolRecon(gmm, subvolLoc, sub
     for i = 1:nLocs
         atlLoc = subvolLoc + atlLocs(i, :);
 
-        % extract atlas patch
+        % extract atlas patch and subtract mean
         dsAtlPatch = cropVolume(dsSubjInAtlVol, atlLoc, atlLoc + atlPatchSize - 1);
+        meanAtlPatch = mean(dsAtlPatch(:));
+        dsAtlPatch = dsAtlPatch - meanAtlPatch;
         dsAtlMaskPatch = cropVolume(dsSubjInAtlMaskVol, atlLoc, atlLoc + atlPatchSize - 1);
         
         % choose optimal cluster using the in-atlas heuristic measure
@@ -53,11 +55,14 @@ function [quiltedSubvol, minSubvolLoc, cntvol] = subvolRecon(gmm, subvolLoc, sub
         
         % reconstruct in subject space
         for k = 1:keepk
-            atlMu = gmm.mu(optk(k), :)';
+            atlMu = gmm.mu(optk(k), :)' + meanAtlPatch;
             atlSigma = gmm.sigma(:, :, optk(k));
             [reconPatches{i, k}, reconLocs{i, k}] = paffine.recon(atlMu, atlSigma, atlLoc, ...
                 atlPatchSize, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, crmethod, extraReconArg);
         end
+
+        %reconPatches(i,:) = cellfunc(@(x) x + meanAtlPatch, reconPatches(i,:));
+
     end 
 
     
