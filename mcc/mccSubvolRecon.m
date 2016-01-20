@@ -28,12 +28,12 @@ function mccSubvolRecon(gmmFile, subvolFile, iniReconFile, ...
     dsSubjVol = nii2vol(loadNii(dsSubjFile));
     dsSubjWeightVol = nii2vol(loadNii(dsSubjWeightFile));
     
-    load(subjCorrFile, 'atlLoc2SubjSpace', 'subjLoc2AtlSpace');
+    load(subjCorrFile, 'atlLoc2SubjSpace', 'subjLoc2AtlSpace', 'atl2subjR');
 
     % reconstruct
     [reconVol, reconLoc, reconWeight] = papago.subvolRecon(gmm, subvolLoc, subvolSize, atlPatchSize, ...
         crmethod, nPatchReconPerLoc, dsSubjInAtlVol, dsSubjInAtlMaskVol, dsSubjVol, ...
-        dsSubjWeightVol, atlLoc2SubjSpace, subjLoc2AtlSpace); %#ok<ASGLU>
+        dsSubjWeightVol, atlLoc2SubjSpace, subjLoc2AtlSpace, atl2subjR); %#ok<ASGLU>
 
     % save reconPatches.
     save(subjoutFile, 'reconVol', 'reconLoc', 'reconWeight');
