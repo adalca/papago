@@ -15,27 +15,27 @@ patchColPad = ones(1, 3) * 2;
 % load ADNI full-subject, and buckner full-dataset column.
 
 % load *ground truth* data column from buckner
-bucknermd = loadmd([SYNTHESIS_DATA_PATH, 'buckner', '_restor_md_*']);
+% bucknermd = loadmd([SYNTHESIS_DATA_PATH, 'buckner', '_restor_md_*']);
 [bucknerIsoPatchCol, ~, volidx] = ...
     subspacetools.md2patchcol(bucknermd, 'brainIso2Ds5Us5size', atlPatchSize, atlLoc, patchColPad);
 
-% load selected ADNI subject volumes
-adnimd = loadmd([SYNTHESIS_DATA_PATH, 'adni', '_restor_md_*']);
-dsSubjNii = adnimd.loadModality('brainDs5Us5', reconSubj);
-dsSubjVol = double(dsSubjNii.img);
-dsSubjWeightVol = logical(adnimd.loadVolume('brainDs5Us5Mask', reconSubj));
-dsSubjInAtlNii = adnimd.loadModality('brainDs5Us5Reg', reconSubj);
-dsSubjInAtlMaskVol = adnimd.loadVolume('brainDs5Us5RegMask', reconSubj);
-subjInAtlTform = load(adnimd.getModality('brainDs5Us5RegMat', reconSubj));
+    % load selected ADNI subject volumes
+    % adnimd = loadmd([SYNTHESIS_DATA_PATH, 'adni', '_restor_md_*']);
+    dsSubjNii = adnimd.loadModality('brainDs5Us5', reconSubj);
+    dsSubjVol = double(dsSubjNii.img);
+    dsSubjWeightVol = logical(adnimd.loadVolume('brainDs5Us5Mask', reconSubj));
+    dsSubjInAtlNii = adnimd.loadModality('brainDs5Us5Reg', reconSubj);
+    dsSubjInAtlMaskVol = adnimd.loadVolume('brainDs5Us5RegMask', reconSubj);
+    subjInAtlTform = load(adnimd.getModality('brainDs5Us5RegMat', reconSubj));
 
-% prepare necessary inputs for conditional-based reconstruction
-subjDims = dsSubjNii.hdr.dime.pixdim(2:4);
-atlDims = dsSubjInAtlNii.hdr.dime.pixdim(2:4);
-tform = subjInAtlTform.tform;
-atlVolSize = size(dsSubjInAtlNii.img);
-subjLoc2AtlSpace = tform2cor3d(tform, size(dsSubjVol), subjDims, atlVolSize, atlDims);
-atlLoc2SubjSpace = tform2cor3d(tform, size(dsSubjVol), subjDims, atlVolSize, atlDims, 'backward');
-extraReconArg = ifelse(strcmp(crmethod, 'inverse'), subjLoc2AtlSpace, regVal);
+    % prepare necessary inputs for conditional-based reconstruction
+    subjDims = dsSubjNii.hdr.dime.pixdim(2:4);
+    atlDims = dsSubjInAtlNii.hdr.dime.pixdim(2:4);
+    tform = subjInAtlTform.tform;
+    atlVolSize = size(dsSubjInAtlNii.img);
+    subjLoc2AtlSpace = tform2cor3d(tform, size(dsSubjVol), subjDims, atlVolSize, atlDims);
+    atlLoc2SubjSpace = tform2cor3d(tform, size(dsSubjVol), subjDims, atlVolSize, atlDims, 'backward');
+    extraReconArg = ifelse(strcmp(crmethod, 'inverse'), subjLoc2AtlSpace, regVal);
 
 
 %% compute gaussian mixture model
@@ -46,13 +46,27 @@ gmmopt = statset('Display', 'iter', 'MaxIter', 20, 'TolFun', 0.001);
 tic
 gmm = fitgmdist(bucknerIsoPatchCol, gmmK, 'regularizationValue', regVal, 'replicates', 10, 'Options', gmmopt);
 fprintf('Gaussian mixture model took %3.3f sec\n', toc);
+gmm = wgmm.gmdist2wgmm(gmm);
 
 %% reconstruct patches in ADNI volume and quilt
 keepr = 1;
 subvolLoc = atlLoc - patchColPad;
 subvolSize = atlPatchSize + (2 * patchColPad + 1);
+tic
 [quiltedSubvol, reconLoc, cntvol] = papago.subvolRecon(gmm, subvolLoc, subvolSize, atlPatchSize, crmethod, keepr, ...
     dsSubjInAtlNii.img, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArg);
+toc
+
+%% 
+
+load katieisscared R srcMask tgtMask
+keepr = 1;
+subvolLoc = atlLoc - patchColPad;
+subvolSize = atlPatchSize + (2 * patchColPad + 1);
+tic;
+[quiltedSubvol_R, reconLoc_R, cntvol_R] = papago.subvolRecon(gmm, subvolLoc, subvolSize, atlPatchSize, crmethod, keepr, ...
+    dsSubjInAtlNii.img, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArg, R);
+toc;
 
 %% visualize
 isoSubjVol = adnimd.loadVolume('brainIso2Ds5Us5size', reconSubj);

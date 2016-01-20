@@ -5,6 +5,7 @@ function [reconPatch, subjPatchMins, logp] = recon(atlMu, atlSigma, atlLoc, atlP
 % varargin is:
 %   <regVal> if method is forward 
 %   subjLoc2AtlSpace if method is inverse
+%   if |varargin| > 1, second varargin is R
 %
 % srcLoc2TgtSpace is computed via
 %   srcLoc2TgtSpace = tform2cor3d(subj2Atl, size(subjVol), srcVoxDims, tgtVolSize, tgtVoxDims, dirn);
@@ -13,8 +14,19 @@ function [reconPatch, subjPatchMins, logp] = recon(atlMu, atlSigma, atlLoc, atlP
 % TODO: allow just tform as opposed to cell map?
 
     % get subject gaussian coordinates and information
-    [subjMu, subjSigma, subjInterpMask, subjPatchMins, subjPatchSize] = ...
-        paffine.atl2SubjGauss(atlMu, atlSigma, method, atlLoc, atlPatchSize, atlLoc2SubjSpace, varargin{:});
+    if numel(varargin) > 1
+        bigR = varargin{2};
+        assert(strncmp(method, 'inverse', 7));
+        
+        [~, subjPatchMins, subjPatchSize] = paffine.atl2SubjPatch(atlLoc, atlPatchSize, atlLoc2SubjSpace);
+        [R, ~, subjInterpMask] = vol2subvolInterpmat(bigR, atlLoc2SubjSpace, size(varargin{1}{1}), atlLoc, atlPatchSize); 
+        [subjMu, subjSigma] = paffine.atl2SubjGauss(atlMu, atlSigma, method, R);
+        
+    else
+        [subjMu, subjSigma, subjInterpMask, subjPatchMins, subjPatchSize] = ...
+            paffine.atl2SubjGauss(atlMu, atlSigma, method, atlLoc, atlPatchSize, atlLoc2SubjSpace, varargin{:});
+    end
+
            
     % reconstruct the patch
     subjPatch = cropVolume(subjVol, subjPatchMins, subjPatchMins + subjPatchSize - 1);

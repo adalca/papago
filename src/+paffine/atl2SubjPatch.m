@@ -13,19 +13,7 @@ function [subjPatchRange, mins, subjPatchSize] = atl2SubjPatch(atlasLoc, atlPatc
 % [subjPatchRange, subjLoc, subjPatchSize] = atl2SubjPatch(atlasLoc, atlPatchSize, atlLoc2SubjSpace)
 % also returns the subject top-left location, and the patch size in subject space.
 % 
-%
-% TODO: make more general and call from here.
+% See Also: srcVol2tgtPatch
 
     % get the range of the patch in atlas space
-    atlasPatchRange = arrayfunc(@(loc, siz) loc:loc+siz-1, atlasLoc, atlPatchSize);
-    atlasPatchRangeGrid = ndgrid2cell(atlasPatchRange{:});
-    idx = sub2ind(size(atlLoc2SubjSpace{1}), atlasPatchRangeGrid{:});
-
-    % compute the patch limits in subject space
-    mins = cellfun(@(x) floor(min(x(idx(:)))), atlLoc2SubjSpace);
-    maxs = cellfun(@(x) ceil(max(x(idx(:)))), atlLoc2SubjSpace);
-    
-    % compute the final range
-    subjPatchRange = arrayfunc(@(mi, ma) mi:ma, mins, maxs);
-    subjPatchSize = maxs - mins + 1;
-    
+    [subjPatchRange, mins, subjPatchSize] = srcVol2tgtPatch(atlasLoc, atlPatchSize, atlLoc2SubjSpace);

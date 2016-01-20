@@ -25,6 +25,8 @@ function [subjMu, subjSigma, varargout] = atl2SubjGauss(atlMu, atlSigma, method,
     if needr
         [R, subjInterpMask, subjPatchMins, subjPatchSize] = ...
             paffine.volCor2patchInterpmat(method, varargin{:});
+    else
+        R = varargin{1};
     end
     
 
