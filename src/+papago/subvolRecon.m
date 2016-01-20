@@ -8,16 +8,16 @@ function [quiltedSubvol, minSubvolLoc, cntvol] = subvolRecon(gmm, subvolLoc, sub
 % TODO: rename to subvolPatchRecon
 % 
 % subvolRecon(gmm, subvolLoc, subvolSize, atlPatchSize, crmethod, keepk, ...
-%   dsSubjInAtlVol, dsSubjInAtlMaskVol, dsSubj, dsSubjWeight, atlLoc2SubjSpace, subjLoc2AtlSpace)
+%   dsSubjInAtlVol, dsSubjInAtlMaskVol, dsSubj, dsSubjWeight, atlLoc2SubjSpace, subjLoc2AtlSpace, <bigR>)
 %
 % subvolRecon(gmm, subvolLoc, subvolSize, atlPatchSize, crmethod, keepk, ...
-%   dsSubjInAtlNii, dsSubjInAtlMaskNii, dsSubjNii, dsSubjWeightNii, tform)
+%   dsSubjInAtlNii, dsSubjInAtlMaskNii, dsSubjNii, dsSubjWeightNii, tform, <bigR>)
 %   
 % Currently uses atlas-space heuristic to get the optimal cluster and the conditional rotation
 % reconstruction method.
 
     % need: subjVol, subjWeightVol, crmethod, subjLoc2AtlSpace or regVal
-    [dsSubjInAtlVol, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArg] ...
+    [dsSubjInAtlVol, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArgs] ...
         = parseInputs(crmethod, dsSubjInAtl, dsSubjInAtlMask, dsSubj, dsSubjWeight, varargin{:});
 
     % prepare atlas locations to loop over
@@ -58,10 +58,10 @@ function [quiltedSubvol, minSubvolLoc, cntvol] = subvolRecon(gmm, subvolLoc, sub
             atlMu = gmm.mu(optk(k), :)' + meanAtlPatch;
             atlSigma = gmm.sigma(:, :, optk(k));
             [reconPatches{i, k}, reconLocs{i, k}] = paffine.recon(atlMu, atlSigma, atlLoc, ...
-                atlPatchSize, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, crmethod, extraReconArg);
+                atlPatchSize, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, crmethod, extraReconArgs{:});
         end
 
-        %reconPatches(i,:) = cellfunc(@(x) x + meanAtlPatch, reconPatches(i,:));
+        % reconPatches(i,:) = cellfunc(@(x) x + meanAtlPatch, reconPatches(i,:));
 
     end 
 
@@ -80,7 +80,7 @@ function [quiltedSubvol, minSubvolLoc, cntvol] = subvolRecon(gmm, subvolLoc, sub
     
 end
 
-function [subjAtlVol, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArg] ...
+function [subjAtlVol, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArgs] ...
     = parseInputs(crmethod, dsSubjInAtl, dsSubjInAtlMask, dsSubj, dsSubjWeight, varargin)
 
     if iscell(varargin{1})
@@ -90,9 +90,9 @@ function [subjAtlVol, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2Sub
         dsSubjWeightVol = dsSubjWeight;
         atlLoc2SubjSpace = varargin{1};
         
-        extraReconArg = [];
+        extraReconArgs = {};
         if numel(varargin) > 1
-            extraReconArg = varargin{2};
+            extraReconArgs = varargin(2:end);
         end 
         
     else
@@ -104,12 +104,8 @@ function [subjAtlVol, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2Sub
         dsSubjWeightVol = dsSubjWeight;
         
         tform = varargin{1};
-        regVal = 0;
-        if numel(varargin) > 1
-            regVal = varargin{2};
-        end 
         
         [subjLoc2AtlSpace, atlLoc2SubjSpace] = nii2cor3d(tform, dsSubjNii, dsSubjInAtlNii);
-        extraReconArg = ifelse(strcmp(crmethod, 'inverse'), subjLoc2AtlSpace, regVal);
+        extraReconArgs = ifelse(strcmp(crmethod, 'inverse'), {subjLoc2AtlSpace, varargin{2:end}}, varargin(2:end));
     end
 end
