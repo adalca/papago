@@ -4,5 +4,5 @@ function gmm = gmdist2wgmm(gmdist, X, W, K)
         gmsigmainv(:,:,i) = inv(gmdist.Sigma(:,:,i));
     end
 
-    gmm = wgmm(X, W, K, gmdist.mu, gmdist.Sigma, gmdist.ComponentProportion, gmsigmainv);
+    gmm = wgmm(gmdist.mu, gmdist.Sigma, gmdist.ComponentProportion, gmsigmainv);
 end
