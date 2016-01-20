@@ -1,6 +1,8 @@
 function [subvolR, srcMask, tgtMask] = vol2subvolInterpmat(R, srcLoc2tgtSpace, tgtSize, srcSubvolLoc, srcSubvolSize)
 % R src --> tgt ===> R is |tgt| x |src|
 
+    
+
     % prepare source indeces;
     srcRange = arrayfunc(@(l, s) l:l+s-1, srcSubvolLoc, srcSubvolSize);
     ndSrcRange = ndgrid2cell(srcRange{:});
