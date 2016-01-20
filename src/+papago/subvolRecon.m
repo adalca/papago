@@ -30,40 +30,46 @@ function [quiltedSubvol, minSubvolLoc, cntvol] = subvolRecon(gmm, subvolLoc, sub
     reconPatches = cell(nLocs, 1);
     reconLocs = cell(nLocs, 1);
     
-    % go through each patch and reconstruct
+    % extract relevant patches
+    gatlLocs = bsxfun(@plus, subvolLoc, atlLocs);
+    meanAtlPatch = zeros(nLocs, 1);
+    dsAtlPatch = zeros(nLocs, prod(atlPatchSize));
+    dsAtlMaskPatch = zeros(nLocs, prod(atlPatchSize));
     for i = 1:nLocs
-        atlLoc = subvolLoc + atlLocs(i, :);
+        atlLoc = gatlLocs(i, :);
 
         % extract atlas patch and subtract mean
-        dsAtlPatch = cropVolume(dsSubjInAtlVol, atlLoc, atlLoc + atlPatchSize - 1);
-        meanAtlPatch = mean(dsAtlPatch(:));
-        dsAtlPatch = dsAtlPatch - meanAtlPatch;
-        dsAtlMaskPatch = cropVolume(dsSubjInAtlMaskVol, atlLoc, atlLoc + atlPatchSize - 1);
+        dsAtlPatchtmp = cropVolume(dsSubjInAtlVol, atlLoc, atlLoc + atlPatchSize - 1);
+        meanAtlPatch(i) = mean(dsAtlPatchtmp(:));
+        dsAtlPatch(i, :) = dsAtlPatchtmp(:) - meanAtlPatch(i);
+        dsAtlMaskPatchtmp = cropVolume(dsSubjInAtlMaskVol, atlLoc, atlLoc + atlPatchSize - 1);
+        dsAtlMaskPatch(i, :) = dsAtlMaskPatchtmp(:);
+    end
         
-        % choose optimal cluster using the in-atlas heuristic measure
-        K = size(gmm.mu, 1);
-        logp = zeros(1, K);
-        for k = 1:K
-            atlMu = gmm.mu(k, :)';
-            atlSigma = gmm.sigma(:, :, k);
-            logp(k) = logmvnpdf(dsAtlPatch(:)' .* dsAtlMaskPatch(:)', atlMu(:)' .* dsAtlMaskPatch(:)', atlSigma);
-        end
-        
+    % choose optimal cluster using the in-atlas heuristic measure
+    K = size(gmm.mu, 1);
+    logp = zeros(nLocs, K);
+    for k = 1:K
+        atlMu = gmm.mu(k, :)';
+        atlSigma = gmm.sigma(:, :, k);
+        atlmusel = bsxfun(@times, atlMu(:)', dsAtlMaskPatch);
+        logp(:, k) = logmvnpdf(dsAtlPatch .* dsAtlMaskPatch, atlmusel, atlSigma);
+    end
+    
+    for i = 1:nLocs
         % get the optimal cluster via posteriors
-        logpost = log(gmm.pi) + logp;
+        logpost = log(gmm.pi) + logp(i, :);
         [~, optk] = sort(logpost, 'descend');
         
         % reconstruct in subject space
         for k = 1:keepk
-            atlMu = gmm.mu(optk(k), :)' + meanAtlPatch;
+            atlMu = gmm.mu(optk(k), :)' + meanAtlPatch(i);
             atlSigma = gmm.sigma(:, :, optk(k));
             [reconPatches{i, k}, reconLocs{i, k}] = paffine.recon(atlMu, atlSigma, atlLoc, ...
                 atlPatchSize, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, crmethod, extraReconArgs{:});
         end
-
-        % reconPatches(i,:) = cellfunc(@(x) x + meanAtlPatch, reconPatches(i,:));
-
-    end 
+        % reconPatches(i,:) = cellfunc(@(x) x + meanAtlPatch, reconPatches(i,:));    
+    end
 
     
     % determine what region of the subvolume is quilted using the reconPatches
