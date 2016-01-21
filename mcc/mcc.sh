@@ -10,9 +10,9 @@
 
 # prepare project and toolbox paths
 # if want to make current: "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-MAIN_PATH="/data/vision/polina/users/adalca/patchSynthesis"
-PROJECT_PATH="${MAIN_PATH}/subspace/"
-TOOLBOX_PATH="${MAIN_PATH}/toolboxes"
+MAIN_PATH="/data/vision/polina/users/adalca/patchSynthesis/subspace"
+PROJECT_PATH="${MAIN_PATH}/git"
+TOOLBOX_PATH="/data/vision/polina/users/adalca/MATLAB/toolboxes"
 EXTTOOLBOX_PATH="/data/vision/polina/users/adalca/MATLAB/external_toolboxes"
 
 # MCC-related paths
@@ -23,7 +23,7 @@ MCC_RUN_DIR="/afs/csail.mit.edu/system/common/matlab/2013b/bin/mcc"
 export PATH="${MAIN_PATH}:$PATH"
 
 ## run mcc on desired (*.m) files.
-for pfilename in mccTrain mccPrepareSubvols
+for pfilename in "$@"
 do
   filename=`basename ${pfilename}`
 
@@ -33,6 +33,7 @@ do
     ${PROJECT_PATH}/${pfilename}.m \
     ${MAIN_PATH}/MCC/MCC_${filename} \
     ${PROJECT_PATH}/src/ \
+    ${PROJECT_PATH}/ext/ \
     ${TOOLBOX_PATH} \
     ${EXTTOOLBOX_PATH}
 done
