@@ -15,12 +15,12 @@ patchColPad = ones(1, 3) * 2;
 % load ADNI full-subject, and buckner full-dataset column.
 
 % load *ground truth* data column from buckner
-% bucknermd = loadmd([SYNTHESIS_DATA_PATH, 'buckner', '_restor_md_*']);
+bucknermd = loadmd([SYNTHESIS_DATA_PATH, 'buckner', '_restor_md_*']);
 [bucknerIsoPatchCol, ~, volidx] = ...
     subspacetools.md2patchcol(bucknermd, 'brainIso2Ds5Us5size', atlPatchSize, atlLoc, patchColPad);
 
 % load selected ADNI subject volumes
-% adnimd = loadmd([SYNTHESIS_DATA_PATH, 'adni', '_restor_md_*']);
+adnimd = loadmd([SYNTHESIS_DATA_PATH, 'adni', '_restor_md_*']);
 dsSubjNii = adnimd.loadModality('brainDs5Us5', reconSubj);
 dsSubjVol = double(dsSubjNii.img);
 dsSubjWeightVol = logical(adnimd.loadVolume('brainDs5Us5Mask', reconSubj));

@@ -65,7 +65,7 @@ function [quiltedSubvol, minSubvolLoc, cntvol] = subvolRecon(gmm, subvolLoc, sub
         for k = 1:keepk
             atlMu = gmm.mu(optk(k), :)' + meanAtlPatch(i);
             atlSigma = gmm.sigma(:, :, optk(k));
-            [reconPatches{i, k}, reconLocs{i, k}] = paffine.recon(atlMu, atlSigma, atlLoc, ...
+            [reconPatches{i, k}, reconLocs{i, k}] = paffine.recon(atlMu, atlSigma, gatlLocs(i, :), ...
                 atlPatchSize, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, crmethod, extraReconArgs{:});
         end
         % reconPatches(i,:) = cellfunc(@(x) x + meanAtlPatch, reconPatches(i,:));    
@@ -74,8 +74,10 @@ function [quiltedSubvol, minSubvolLoc, cntvol] = subvolRecon(gmm, subvolLoc, sub
     
     % determine what region of the subvolume is quilted using the reconPatches
     reconLocsEnd = cellfunc(@(x, y) x  + size(y), reconLocs, reconPatches); 
-    minSubvolLoc = min(reshape([reconLocs{:}], [3 length(reconLocs)]), [],2)';
-    maxSubvolLoc = max(reshape([reconLocsEnd{:}], [3 length(reconLocs)]), [], 2)';
+    % minSubvolLoc = min(reshape([reconLocs{:}], [3 length(reconLocs)]), [],2)';
+    minSubvolLoc = min(cat(1, reconLocs{:}), [], 1);
+    maxSubvolLoc = max(cat(1, reconLocsEnd{:}), [], 1);
+    % maxSubvolLoc = max(reshape([reconLocsEnd{:}], [3 length(reconLocs)]), [], 2)';
     
     % determine the size of the subvolume that will be quilted
     subvolSize = maxSubvolLoc - minSubvolLoc + 1; 

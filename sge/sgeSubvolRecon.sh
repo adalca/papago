@@ -1,9 +1,10 @@
 #!/bin/bash
 # run subvolume reconstruction
 #
-# >$ sgeTrain traindatapath testsubjpath ver <inireconfile>
+# >$ sgeSubvolRecon traindatapath testsubjpath ver <inireconfile>
 #
 # examples:
+# ./sgeSubvolRecon.sh /data/vision/polina/scratch/adalca/patchSynthesis/data/adni /data/vision/polina/scratch/adalca/patchSynthesis/data/buckner/proc/buckner01 dec2015
 
 ###############################################################################
 # Settings
@@ -18,9 +19,9 @@ mcr=/data/vision/polina/shared_software/MCR/v82/
 
 # project paths
 PROJECT_PATH="/data/vision/polina/users/adalca/patchSynthesis/subspace/git/";
-SUBVOLS_PATH="${PATH_TRAIN}/subvols/"
-GMMS_PATH="${PATH_TRAIN}/gmms/"
-inireconfile="${PROJECT_PATH}/ini/recon.ini" # default recon ini file
+SUBVOLS_PATH="${PATH_TRAIN}/subvols/${gmmver}"
+GMMS_PATH="${PATH_TRAIN}/gmms/${gmmver}"
+iniReconFile="${PROJECT_PATH}/ini/recon.ini" # default recon ini file
 
 # subject files
 subjid=`basename ${PATH_TEST_SUBJ}`;
@@ -32,11 +33,13 @@ subjCorrFile="${PATH_TEST_SUBJ}/${subjid}_brain_cor_2_ds5_us2_size.mat"
 PATH_RECONSUBVOLS="${PATH_TEST_SUBJ}/subvolRecons"
 
 # training shell file
-mccSh="${PROJECT_PATH}/MCC/MCC_mccSubvolRecon/run_mccSubvolRecon.sh"
+mccSh="${PROJECT_PATH}/../MCC/MCC_mccSubvolRecon/run_mccSubvolRecon.sh"
 
 # recon parameters -- these are the parameters that should have been trained already
 K=(2 3 5 10 15 25)
 modelvec=("model0" "model3") # iso, ds
+K=(5)
+modelvec=("model0") # iso, ds
 nGrid=`ls ${SUBVOLS_PATH}/*.mat | wc -l`
 nRunTypes="${#idxvec[@]}"
 
@@ -57,7 +60,7 @@ do
     sgeopath="${subjoutFolder}/sge/"
     mkdir -p ${sgeopath}
 
-    gmmfolder="${GMMS_PATH}/${gmmver}/${model}/K${k}/"
+    gmmfolder="${GMMS_PATH}/${model}/K${k}/"
 
     for i in `seq 1 $nGrid`
     do
@@ -87,7 +90,7 @@ do
       $sgecmd
 
       echo "done subvolRecon queue r:${r} k:${K} i:${i}"
-      # sleep 1
+      #sleep 1
     done
   done
 done
