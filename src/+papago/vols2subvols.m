@@ -108,8 +108,8 @@ function varargout = vols2subvols(method, data, volnames, atlVolSize, subvolSize
         % save volumes and information
         if exist('savefile', 'var') && ~isempty('savefile');
             savedata = struct();
-            for vi = 1:numel(volnames)
-                savedata.(volnames{vi}) = subvolumes(:, vi);
+            for zi = 1:numel(volnames)
+                savedata.(volnames{zi}) = subvolumes(:, zi);
             end
             savedata.nfo = nfo; %#ok<STRNU>
             
