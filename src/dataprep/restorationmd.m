@@ -141,6 +141,8 @@ function md = restorationmd(dsAmounts, buildpath, savepath, name)
             name = '';
         end
         date = datestr(now, 'yyyy_mm_dd');
-        save([savepath, filesep, name, '_restor_md_', date], 'md');
+        fld = [savepath, filesep, name, filesep, 'md', filesep];
+        mkdir(fld);
+        save([fld, sys.usrname, '_restor_md_', date], 'md');
     end
     

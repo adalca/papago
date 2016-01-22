@@ -28,7 +28,8 @@ switch getmdmethod
         
     case 'load'
         % get latest file
-        md = loadmd([SYNTHESIS_DATA_PATH, name, '_restor_md_*']);
+        fnames = fullfile(SYNTHESIS_DATA_PATH, name, 'md', [sys.usrname, '_restor_md_*']);
+        md = loadmd(fnames);
         
     case 'none'
         clear md
