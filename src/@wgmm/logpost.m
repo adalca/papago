@@ -112,7 +112,7 @@ function logpin = logpost(gmm, X, W)
                         logdetw = zeros(size(W, 1), 1);
                     else
                         for i = 1:N
-                            logdetw(i) = gmm.logdet(diag(W(i, :)));
+                            logdetw(i) = logdet(diag(W(i, :)));
                         end
                     end
                 end
@@ -120,9 +120,9 @@ function logpin = logpost(gmm, X, W)
                 % from our tests, at least on usRate = 2, patchSize of 5^3, the maximum error is ~1e-10.
 
                 if ~isempty(gmm.sigmainv)
-                    logpin(:, k) = log(gmm.pi(k)) + gmm.logmvnpdf(Xw, mu, gmm.sigma(:,:,k), gmm.sigmainv(:,:,k)) - logdetw(:);
+                    logpin(:, k) = log(gmm.pi(k)) + logmvnpdf(Xw, mu, gmm.sigma(:,:,k), gmm.sigmainv(:,:,k)) - logdetw(:);
                 else
-                    logpin(:, k) = log(gmm.pi(k)) + gmm.logmvnpdf(Xw, mu, gmm.sigma(:,:,k)) - logdetw(:);
+                    logpin(:, k) = log(gmm.pi(k)) + logmvnpdf(Xw, mu, gmm.sigma(:,:,k)) - logdetw(:);
                 end
                     
 

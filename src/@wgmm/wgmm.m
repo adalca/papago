@@ -59,8 +59,10 @@ classdef wgmm < handle
             if nargin >= 3, gmm.pi = varargin{3}; end
             if nargin >= 4, gmm.sigmainv = varargin{4}; end
                 
-            assert(size(gmm.mu, 1) == size(gmm.sigma, 3));
-            assert(size(gmm.mu, 1) == numel(gmm.pi));
+            if nargin >= 3
+                assert(size(gmm.mu, 1) == size(gmm.sigma, 3));
+                assert(size(gmm.mu, 1) == numel(gmm.pi));
+            end
         end
         
         function print(wg)

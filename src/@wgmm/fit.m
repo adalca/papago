@@ -29,7 +29,7 @@ function fwgmm = fit(X, W, K, varargin)
         ll = [];
         
         % First E step and ll
-        [gammank, ll(1)] = wg.estep(X, W, K);
+        [gammank, ll(1)] = wg.estep(X, W);
         
         % print inital ll
         printiter(wg, opt, ll, r);
