@@ -42,7 +42,7 @@ function fwgmm = fit(X, W, K, varargin)
             wg.mstep(X, W, K, gammank);
             
             % E step
-            [gammank, ll(ct+1)] = wg.estep(X, W, K);
+            [gammank, ll(ct+1)] = wg.estep(X, W);
 
             % check log likelihood
             sys.warnif(~(ll(ct+1) >= ll(ct)), sprintf('log lik went down in repl:%d iter:%d', r, ct));
@@ -86,18 +86,18 @@ function printiter(wg, opt, ll, r)
         if opt.verbose > 0
             fprintf('%10d\t%10f\t%10f\n', ct, ll(ct+1), llpchange);
 
-            if opt.verbose > 1
-                subplot(121); cla;
-                plot(ll); hold on;
-                title('loglik');
-                
-                subplot(122); cla; 
-                plot(X(:, 1), X(:, 2), '.'); 
-                hold on; 
-                scatter(wg.mu(:, 1), wg.mu(:, 2), '*');
-                title('clustering animation of first 2 dimensions')
-                drawnow;
-            end
+%             if opt.verbose > 1
+%                 subplot(121); cla;
+%                 plot(ll); hold on;
+%                 title('loglik');
+%                 
+%                 subplot(122); cla; 
+%                 plot(X(:, 1), X(:, 2), '.'); 
+%                 hold on; 
+%                 scatter(wg.mu(:, 1), wg.mu(:, 2), '*');
+%                 title('clustering animation of first 2 dimensions')
+%                 drawnow;
+%             end
         end
     end
 end
@@ -121,7 +121,7 @@ function [X, W, k, opt] = parseInputs(X, W, k, varargin)
     p.addParameter('regularizationWeight', nan, @isscalar)
     p.addParameter('TolFun', 0.01, @(x) isscalar(x) && x <= 1 && x >= 0);
     
-    p.addParameter('verbose', 2, @islogical);
+    p.addParameter('verbose', 2, @isIntegerValue);
     p.addParameter('debug', false, @islogical);
     
     p.parse(X, W, k, varargin{:});

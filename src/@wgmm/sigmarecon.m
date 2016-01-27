@@ -59,8 +59,9 @@ function sigmar = sigmarecon(sigma, wtw, method)
             % This is a good medium between no-loop (memory intense) and double-loop (slow)
             d = diag(sigma)';
             sigmar = sigma * 0;
+            z = bsxfun(@times, sigma .* wtw, 1 ./ sqrt(diag(sigma)'));
             for i = 1:size(sigma, 1)
-                teststat = bsxfun(@times, sigma(i, :) .* wtw(i, :) ./ sqrt(diag(sigma)'), wtw);
+                teststat = bsxfun(@times, z(i, :), wtw);
                 [~, mi] = max(teststat, [], 2);
                 
                 x = ndgrid2cell(i, 1:size(sigma, 1));

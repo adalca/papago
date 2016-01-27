@@ -107,13 +107,17 @@ function logpin = logpost(gmm, X, W)
                 mu = bsxfun(@times, W, gmm.mu(k, :)) ;
                 if nargin == 1
                     logdetw = gmm.logdetw;
+                    
                 else
                     if all(W(:) == 1)
                         logdetw = zeros(size(W, 1), 1);
                     else
-                        for i = 1:N
-                            logdetw(i) = logdet(diag(W(i, :)));
-                        end
+                        % compute logdet(diag(W(i, :)); for each i
+                        % logdetw = zeros(N, 1);
+                        % for i = 1:N
+                        %    logdetw(i) = logdet(diag(W(i, :)));
+                        % end
+                        logdetw = sum(log(W), 2);
                     end
                 end
                 % Note: passing in the inverse sigma is much faster, but might lose some accuracy.
