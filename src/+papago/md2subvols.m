@@ -17,7 +17,8 @@ function md2subvols(trainmdfile, mods, volNames, patchSize, gridSpacing, atlVolS
 % md2subvols(trainmdfile, mods, volNames, patchSize, gridSpacing, atlVolSize, savefile, mdmatfile)
 % allows the specification of a matfile modality
 %
-% (MCC-ready) numerical inputs can be passed in as strings.
+% (MCC-ready) numerical inputs can be passed in as strings. % TODO: change this, make any
+% mcc-readyness outside of this function (?).
 %
 % TODO: allow for a mode that just loads in the volume, crops, and stores, one by one (i.e. not
 % matfile), and allow to SGE this. This will hit the disks a bit too strong, but might be doable?
@@ -43,10 +44,10 @@ function md2subvols(trainmdfile, mods, volNames, patchSize, gridSpacing, atlVolS
     end
     
     % prepare grid
-    subvolSize = patchSize + gridSpacing;
+    subvolSize = patchSize + gridSpacing - 1; 
     papago.vols2subvols(method{:}, volNames, atlVolSize, subvolSize, gridSpacing, savefile);
 end
 
 function x = makenum(x)
-    x = ifelse(ischar(x), 'str2num(x)', 'x', true); %#ok<ST2NM>
+    x = ifelse(ischar(x), 'str2num(x)', 'x', true); 
 end
