@@ -29,7 +29,7 @@ function [R, subjInterpMask, subjPatchMins, subjPatchSize] = ...
             [subjPatchRange, subjPatchMins, subjPatchSize] = paffine.atl2SubjPatch(atlLoc, atlPatchSize, atlLoc2SubjSpace);
             subjLoc2AtlSpacePatch = extractAndNormalizePatchCor(subjLoc2AtlSpace, subjPatchRange, atlLoc);
             [R, ~, subjInterpMask] = cor2interpmat(atlPatchSize, subjLoc2AtlSpacePatch);
-    
+     
         otherwise
             error('not a valid method for sigma estimation');
     end
