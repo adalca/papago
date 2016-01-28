@@ -145,6 +145,43 @@ function processmd(md, dsRate, intensityNorm, atlmods, steps)
         md.register(brainCropped, atlfile, 'rigid', 'multimodal', ...
             'saveModality', brainDsUsRegSeg, 'loadtformModality', brainDsUsRegMat, 'registeredVolumeInterp', 'nearest');
     end
+    
+%% mdInterpmatWarp(md, dsmod, dsusmaskmod, rmod, atlvol, regmod)
+% Transform medicalDataset sparse-slice volumes according to sparse-slice interpolant matrix, as
+% opposed to warping dsXusX images
+
+    dsmod = 'brainDs5Us5Mask';
+    dsusmaskmod = 'brainDs5Us5InterpMat';
+    rmod = 'brainDs5Us5Regwcor';
+    atlvol = BUCKNER_ATLAS_MODS.BUCKNER_ATLAS_BRAIN_PROC_DS5_US5;
+    regmod = 'brainDs5Us5InterpReg';
+
+    if ismember('mdInterpmatWarp', steps); % unfinished.
+
+        atlnii = loadNii(atlvol);
+
+        vi = verboseIter(1:md.getNumSubjects, 2);
+        while vi.hasNext()
+            i = vi.next(); 
+            dsSubjNii = md.getModality(dsmod, i);
+            dsusSubjmasknii = md.getModality(dsusmaskmod, i);
+            interpSubjFile = md.getModality(rmod, i);
+            regOutFile = md.getModality(regmod, i);
+
+            warpViaInterpmat(dsSubjNii, dsusSubjmasknii, interpSubjFile, ...
+                atlnii, regOutFile);
+
+            % visualize if return
+            % q = md.loadVolume('brainDs5Us5Reg', i);
+            % qn = q; q(isnan(warpedVol)) = nan;
+            % qiso = md.loadVolume('brainIso2Ds5Us5sizeReg', i);
+            % qiso(isnan(warpedVol)) = nan;
+            % view3Dopt(warpedVol, q, qn, qiso);
+        end
+
+        vi.close();
+    end
+
 
     %% copy some specific niftis to matfile
     % TODO - save all the modalities to the matfile? (simpler code) the problem is this can be huge.
