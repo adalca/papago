@@ -168,7 +168,7 @@ function processmd(md, dsRate, intensityNorm, atlmods, steps)
             interpSubjFile = md.getModality(rmod, i);
             regOutFile = md.getModality(regmod, i);
 
-            warpViaInterpmat(dsSubjNii, dsusSubjmasknii, interpSubjFile, ...
+            paffine.warpvol(dsSubjNii, dsusSubjmasknii, interpSubjFile, ...
                 atlnii, regOutFile);
 
             % visualize if return

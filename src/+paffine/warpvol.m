@@ -1,4 +1,4 @@
-function regNii = interpmatWarp(dsSubjNii, dsusSubjmasknii, interpSubjFile, atlNii, regOutFile)
+function regNii = warpvol(dsSubjNii, dsusSubjmasknii, interpSubjFile, atlNii, regOutFile)
 % Transform sparse-slice volumes according to sparse-slice interpolant matrix, 
 % as opposed to warping dsXusX images
 %
