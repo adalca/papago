@@ -27,35 +27,15 @@ function [quiltedSubvol, minSubvolLoc, cntvol] = subvolRecon(gmm, subvolLoc, sub
     
     % prepare reconstructions
     nLocs = size(atlLocs, 1);
+    gatlLocs = bsxfun(@plus, subvolLoc - 1, atlLocs);
     reconPatches = cell(nLocs, 1);
     reconLocs = cell(nLocs, 1);
+    reconWeights = cell(nLocs, 1);
     
-    % extract relevant patches
-    gatlLocs = bsxfun(@plus, subvolLoc, atlLocs);
-    meanAtlPatch = zeros(nLocs, 1);
-    dsAtlPatch = zeros(nLocs, prod(atlPatchSize));
-    dsAtlMaskPatch = zeros(nLocs, prod(atlPatchSize));
-    for i = 1:nLocs
-        atlLoc = gatlLocs(i, :);
-
-        % extract atlas patch and subtract mean
-        dsAtlPatchtmp = cropVolume(dsSubjInAtlVol, atlLoc, atlLoc + atlPatchSize - 1);
-        meanAtlPatch(i) = mean(dsAtlPatchtmp(:));
-        dsAtlPatch(i, :) = dsAtlPatchtmp(:) - meanAtlPatch(i);
-        dsAtlMaskPatchtmp = cropVolume(dsSubjInAtlMaskVol, atlLoc, atlLoc + atlPatchSize - 1);
-        dsAtlMaskPatch(i, :) = dsAtlMaskPatchtmp(:);
-    end
-        
-    % choose optimal cluster using the in-atlas heuristic measure
-    K = size(gmm.mu, 1);
-    logp = zeros(nLocs, K);
-    for k = 1:K
-        atlMu = gmm.mu(k, :)';
-        atlSigma = gmm.sigma(:, :, k);
-        atlmusel = bsxfun(@times, atlMu(:)', dsAtlMaskPatch);
-        logp(:, k) = logmvnpdf(dsAtlPatch .* dsAtlMaskPatch, atlmusel, atlSigma);
-    end
+    % logp computation for each patch, for each cluster
+    [logp, meanAtlPatch] = papago.subvolLogp(gmm, subvolLoc, subvolSize, atlPatchSize, dsSubjInAtlVol, dsSubjInAtlMaskVol);
     
+    % reconstruction
     for i = 1:nLocs
         % get the optimal cluster via posteriors
         logpost = log(gmm.pi) + logp(i, :);
@@ -67,25 +47,27 @@ function [quiltedSubvol, minSubvolLoc, cntvol] = subvolRecon(gmm, subvolLoc, sub
             atlSigma = gmm.sigma(:, :, optk(k));
             [reconPatches{i, k}, reconLocs{i, k}] = paffine.recon(atlMu, atlSigma, gatlLocs(i, :), ...
                 atlPatchSize, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, crmethod, extraReconArgs{:});
+            
+            reconWeights{i, k} = reconPatches{i, k} * 0 + exp(logpost(optk(k)));
+            reconWeights{i, k} = reconPatches{i, k} * 0 + logpost(optk(k));
         end
-        % reconPatches(i,:) = cellfunc(@(x) x + meanAtlPatch, reconPatches(i,:));    
+        % reconPatches(i,:) = cellfunc(@(x) x + meanAtlPatch, reconPatches(i,:));
     end
 
-    
     % determine what region of the subvolume is quilted using the reconPatches
     reconLocsEnd = cellfunc(@(x, y) x  + size(y), reconLocs, reconPatches); 
-    % minSubvolLoc = min(reshape([reconLocs{:}], [3 length(reconLocs)]), [],2)';
     minSubvolLoc = min(cat(1, reconLocs{:}), [], 1);
     maxSubvolLoc = max(cat(1, reconLocsEnd{:}), [], 1);
-    % maxSubvolLoc = max(reshape([reconLocsEnd{:}], [3 length(reconLocs)]), [], 2)';
     
     % determine the size of the subvolume that will be quilted
     subvolSize = maxSubvolLoc - minSubvolLoc + 1; 
 
     % quilt the irregularly sized patches
     modReconLocs = cellfunc(@(x) x - minSubvolLoc + 1, reconLocs);
-    [quiltedSubvol, cntvol] = patchlib.quiltIrregularPatches(modReconLocs, reconPatches, 'volSize', subvolSize);
-    
+%     [quiltedSubvol, cntvol] = patchlib.quiltIrregularPatches(modReconLocs, reconPatches, ...
+%         'weightPatches', reconWeights, 'volSize', subvolSize);
+    [quiltedSubvol, cntvol] = patchlib.quiltIrregularPatches(modReconLocs, reconPatches, ...
+            'volSize', subvolSize);    
 end
 
 function [subjAtlVol, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArgs] ...
