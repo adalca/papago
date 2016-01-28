@@ -88,6 +88,9 @@ function md = restorationmd(dsAmounts, buildpath, savepath, name)
             mod = sprintf('%s_brain_downsampled%d_reinterpolated%d_reg.nii.gz', '%s', s, u);
             md.addModality(sprintf('brainDs%dUs%dReg', s, u), mod);
             
+            mod = sprintf('%s_brain_downsampled%d_reinterpolated%d_regwcor.nii.gz', '%s', s, u);
+            md.addModality(sprintf('brainDs%dUs%dInterpReg', s, u), mod);
+            
             mod = sprintf('%s_brain_downsampled%d_reinterpolated%d_reg_seg.nii.gz', '%s', s, u);
             md.addModality(sprintf('brainDs%dUs%dRegSeg', s, u), mod);
 
