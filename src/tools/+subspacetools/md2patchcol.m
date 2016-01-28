@@ -70,6 +70,7 @@ function [patches, layeridx, volidx] = md2patchcol(md, modality, patchSize, loc,
             nii = md.loadModality(modality, i);
             [patches(idx, :), layeridx(idx, :), volidx(idx, :)] = ...
                 subspacetools.nii2patchcol(nii, patchSize, loc, pad);
+            volidx(idx, :) = volidx(idx, :) + i - 1;
         end
         vi.close();
     end
