@@ -22,7 +22,6 @@ function regNii = warpvol(dsSubjNii, dsusSubjmasknii, interpSubjFile, atlNii, re
     if ischar(atlNii), atlNii = loadNii(atlNii); end
     if ischar(dsSubjNii), dsSubjNii = loadNii(dsSubjNii); end
     if ischar(dsusSubjmasknii), dsusSubjmasknii = loadNii(dsusSubjmasknii); end
-    if ischar(interpSubjFile), interpSubjFile = loadNii(interpSubjFile); end
     
     % load subj2atlR
     load(interpSubjFile, 'subj2atlR');  
