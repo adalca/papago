@@ -1,4 +1,4 @@
-function regNii = warpvol(dsSubjNii, dsusSubjmasknii, interpSubjFile, regOutFile)
+function regNii = warpvol(dsSubjNii, dsusSubjmasknii, interpSubjFile, atlSize, regOutFile)
 % Transform sparse-slice volumes according to sparse-slice interpolant matrix, 
 % as opposed to warping dsXusX images
 %
@@ -21,6 +21,14 @@ function regNii = warpvol(dsSubjNii, dsusSubjmasknii, interpSubjFile, regOutFile
 
     if ischar(dsSubjNii), dsSubjNii = loadNii(dsSubjNii); end
     if ischar(dsusSubjmasknii), dsusSubjmasknii = loadNii(dsusSubjmasknii); end
+    if ischar(atlSize)
+        if sys.isfile(atlSize)
+            atlNii = loadNii(atlSize);
+            atlSize = size(atlNii.img);
+        else
+            atlSize = str2num(atlSize);
+        end
+    end
     
     % load subj2atlR
     load(interpSubjFile, 'subj2atlR');  
@@ -36,7 +44,7 @@ function regNii = warpvol(dsSubjNii, dsusSubjmasknii, interpSubjFile, regOutFile
     dsvol = dsSubjNii.img;
 
     % compute warped volume
-    warpedVol = reshape(normfactT .* (T * dsvol(:)), size(mask)); 
+    warpedVol = reshape(normfactT .* (T * dsvol(:)), atlSize); 
     
     % save modality
     if exist('regoutfile', 'var')
