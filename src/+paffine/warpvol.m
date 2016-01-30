@@ -1,4 +1,4 @@
-function regNii = warpvol(dsSubjNii, dsusSubjmasknii, interpSubjFile, atlNii, regOutFile)
+function regNii = warpvol(dsSubjNii, dsusSubjmasknii, interpSubjFile, regOutFile)
 % Transform sparse-slice volumes according to sparse-slice interpolant matrix, 
 % as opposed to warping dsXusX images
 %
@@ -19,7 +19,6 @@ function regNii = warpvol(dsSubjNii, dsusSubjmasknii, interpSubjFile, atlNii, re
 % atl2subjCor = tform2cor3d(atl2subjTform, atlVolSize, atlVoxDims, subjVolSize, subjVoxDims);
 % subj2atlR = cor2interpmat(subjVolSize, atl2subjCor);
 
-    if ischar(atlNii), atlNii = loadNii(atlNii); end
     if ischar(dsSubjNii), dsSubjNii = loadNii(dsSubjNii); end
     if ischar(dsusSubjmasknii), dsusSubjmasknii = loadNii(dsusSubjmasknii); end
     
@@ -37,11 +36,11 @@ function regNii = warpvol(dsSubjNii, dsusSubjmasknii, interpSubjFile, atlNii, re
     dsvol = dsSubjNii.img;
 
     % compute warped volume
-    warpedVol = reshape(normfactT .* (T * dsvol(:)), atlVolSize); 
+    warpedVol = reshape(normfactT .* (T * dsvol(:)), size(mask)); 
     
     % save modality
     if exist('regoutfile', 'var')
-        regNii = atlNii;
+        regNii = dsusSubjmasknii;
         regNii.img = warpedVol;
         saveNii(regNii, regOutFile)
     end
