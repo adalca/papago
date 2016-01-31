@@ -1,5 +1,7 @@
-%% TODO: the experiment of calling gmm on iso, then get the cluster assignments, then try to get 
-%% the same clusters from model3.
+%% compare different models in reconstructing subvolumes.
+% TODOs: 
+%   - the experiment of calling gmm on iso, then get the cluster assignments, then try to get
+%     the same clusters from model3.
 
 % initialize
 setup
