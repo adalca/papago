@@ -10,10 +10,10 @@ segnii = loadNii(BUCKNER_ATLAS_SEG);
 segcrop = segnii.img(cropArray{:});
 niinew = make_nii(segcrop);
 niinew.hdr.dime.pixdim(2:4) = segnii.hdr.dime.pixdim(2:4);
-saveNii(niinew, BUCKNER_ATLAS_SEG_PROC);
+saveNii(niinew, BUCKNER_ATLAS_MODS.BUCKNER_ATLAS_SEG_PROC);
 
 %% resample (all) atlases to match downsample + upsample process 
-atlnii = loadNii(BUCKNER_ATLAS_BRAIN_PROC);
+atlnii = loadNii(BUCKNER_ATLAS_MODS.BUCKNER_ATLAS_BRAIN_PROC);
 atlvol = atlnii.img;
 
 for s = dsAmounts % downsample amount        
@@ -28,7 +28,7 @@ for s = dsAmounts % downsample amount
         sunii.hdr.dime.pixdim(2:4) = atlnii.hdr.dime.pixdim(2:4) ./ u * s;
         
         % save
-        varname = sprintf('BUCKNER_ATLAS_BRAIN_PROC_DS%d_US%d', s, u);
+        varname = sprintf('BUCKNER_ATLAS_MODS.BUCKNER_ATLAS_BRAIN_PROC_DS%d_US%d', s, u);
         cmd = sprintf('saveNii(sunii, %s)', varname);
         disp(cmd);
         eval(cmd);
