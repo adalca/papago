@@ -18,13 +18,13 @@ testdataset = 'buckner';
 %% load buckner volumes and prepare volume data
 % load ADNI full-subject, and buckner full-dataset column.
 
-% load *ground truth* data column from buckner
+% load *ground truth* data column from training
 fnames = fullfile(SYNTHESIS_DATA_PATH, traindataset, 'md', [sys.usrname, '_restor_md_*']);
 trainmd = loadmd(fnames);
 [bucknerIsoPatchCol, ~, volidx] = ...
     subspacetools.md2patchcol(trainmd, 'brainIso2Ds5Us5sizeReg', atlPatchSize, atlLoc, patchColPad);
 
-% load selected ADNI subject volumes
+% load selected test subject volumes
 fnames = fullfile(SYNTHESIS_DATA_PATH, testdataset, 'md', [sys.usrname, '_restor_md_*']);
 testmd = loadmd(fnames);
 dsSubjNii = testmd.loadModality('brainDs5Us5', reconSubj);
