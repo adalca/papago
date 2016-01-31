@@ -56,7 +56,7 @@ function md = restorationmd(dsAmounts, buildpath, savepath, name)
         mod = sprintf('%s_brain_cropped%d_mask.nii.gz', '%s', s);
         md.addModality(sprintf('brainCropped%dMask', s), mod);
 
-        for u = 2:s % upsample amount
+        for u = 1:s % upsample amount
             % in most cases, all volumes will be downsampled by a factor of 1x1xs, then "upsampled" by a
             % factor of 1x1xu
             %

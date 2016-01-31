@@ -14,7 +14,7 @@ function processmd(md, dsRate, intensityNorm, atlmods, steps)
         steps = {'normalize', 'DsUs', 'isoreg', 'dsusreg', 'matfile', 'visualize'};
     end
     
-    usRates = 2:dsRate;
+    usRates = 1:dsRate;
 
     %% normalize intensity and size
     if ismember('normalize', steps);
