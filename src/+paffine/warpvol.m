@@ -50,6 +50,7 @@ function regNii = warpvol(dsSubjNii, dsusSubjmasknii, interpSubjFile, atlSize, r
     if exist('regoutfile', 'var')
         regNii = dsusSubjmasknii;
         regNii.img = warpedVol;
+        regNii.hdr.dime.dim(2:4) = atlSize;
         saveNii(regNii, regOutFile)
     end
 end
