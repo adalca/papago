@@ -15,7 +15,7 @@ BUCKNER_ATLAS_MODS.BUCKNER_ATLAS_SEG_PROC = fullfile(SYNTHESIS_DATA_PATH, 'buckn
 
 %% DS-US paths
 for s = dsAmounts % downsample amount        
-    for u = 2:s % upsample amount
+    for u = 1:s % upsample amount
         varname = sprintf('BUCKNER_ATLAS_MODS.BUCKNER_ATLAS_BRAIN_PROC_DS%d_US%d', s, u);
         fname = sprintf('buckner61_brain_proc_ds%d_us%d.nii.gz', s, u);
         fullfname = fullfile(SYNTHESIS_DATA_PATH, 'buckner/atlases', fname);
