@@ -47,7 +47,7 @@ function regNii = warpvol(dsSubjNii, dsusSubjmasknii, interpSubjFile, atlSize, r
     warpedVol = reshape(normfactT .* (T * dsvol(:)), atlSize); 
     
     % save modality
-    if exist('regoutfile', 'var')
+    if exist('regOutFile', 'var')
         regNii = dsusSubjmasknii;
         regNii.img = warpedVol;
         saveNii(regNii, regOutFile)
