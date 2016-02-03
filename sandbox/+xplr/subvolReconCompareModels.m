@@ -128,34 +128,34 @@ fprintf('Iso W gaussian mixture model took %3.3f sec\n', toc);
     dsSubjInAtlNii.img, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArg);
 
 
-%% compute wgmm from linearly-interpolated  data with high-weights
+%% compute wgmm from interp-based rotated data with high-weights
 tic
-X = bsxfun(@minus, bucknerDsPatchCol, mean(bucknerDsPatchCol, 2));
+X = bsxfun(@minus, bucknerDsInterpPatchCol, mean(bucknerDsInterpPatchCol, 2));
 W = bucknerDsMaskPatchCol;
 W(W < 0.9) = 0.00001;
-gmmDsThrW = wgmmfit(X, W, gmmK, 'regularizationValue', regVal, 'replicates', 3, 'MaxIter', 20, 'TolFun', 0.001, 'regularizationWeight', weightfact, 'verbose', 1);
+gmmDsInterpThrW = wgmmfit(X, W, gmmK, 'regularizationValue', regVal, 'replicates', 3, 'MaxIter', 20, 'TolFun', 0.001, 'regularizationWeight', weightfact, 'verbose', 1);
 fprintf('Iso W gaussian mixture model took %3.3f sec\n', toc);
 
-[quiltedSubvolDsThrW] = papago.subvolRecon(gmmDsThrW, subvolLoc, subvolSize, atlPatchSize, crmethod, keepr, ...
+[quiltedSubvolDsInterpThrW] = papago.subvolRecon(gmmDsInterpThrW, subvolLoc, subvolSize, atlPatchSize, crmethod, keepr, ...
     dsSubjInAtlNii.img, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArg);
 
 %% visualize results
 % get real data subvolume
 isoSubjVol = testmd.loadVolume('brainIso2Ds5Us5size', reconSubj);
-cropIsoSubjVol = cropVolume(isoSubjVol, reconLoc, reconLoc + size(quiltedSubvol) - 1); 
+cropIsoSubjVol = cropVolume(isoSubjVol, reconLoc, reconLoc + size(quiltedSubvolIso) - 1); 
 cropIsoSubjVol(isnan(quiltedSubvolIso)) = nan;
 
 % get linearly-interpolated data
 dsSubjVolWNans = dsSubjVol;
-cropDsSubjVolWNans = cropVolume(dsSubjVolWNans, reconLoc, reconLoc + size(quiltedSubvol) - 1); 
+cropDsSubjVolWNans = cropVolume(dsSubjVolWNans, reconLoc, reconLoc + size(quiltedSubvolIso) - 1); 
 cropDsSubjVolWNans(isnan(quiltedSubvolIso)) = nan;
 
 % get subject weight
 subjWeightVolWNans = dsSubjWeightVol*1;
-cropSubjWeightVolWNans = cropVolume(subjWeightVolWNans, reconLoc, reconLoc + size(quiltedSubvol) - 1); 
-cropSubjWeightVolWNans(isnan(quiltedSubvol)) = nan;
+cropSubjWeightVolWNans = cropVolume(subjWeightVolWNans, reconLoc, reconLoc + size(quiltedSubvolIso) - 1); 
+cropSubjWeightVolWNans(isnan(quiltedSubvolIso)) = nan;
 
 
 view3Dopt(cropIsoSubjVol, cropSubjWeightVolWNans, cropDsSubjVolWNans, quiltedSubvolIso, ...
     quiltedSubvolDs, quiltedSubvolIsoW, quiltedSubvolIsoDsW, quiltedSubvolDsinterpDsW, ...
-    quiltedSubvolDsThrW, cntvol);
+    quiltedSubvolDsInterpThrW, cntvol);
