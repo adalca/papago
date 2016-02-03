@@ -41,7 +41,7 @@ function regNii = warpvol(dsSubjNii, dsusSubjmasknii, interpSubjFile, atlSize, r
     normfactT = 1./sum(T, 2);
 
     % extract the downsampled subject volume
-    dsvol = dsSubjNii.img;
+    dsvol = dsSubjNii.img(mask(:));
 
     % compute warped volume
     warpedVol = reshape(normfactT .* (T * dsvol(:)), atlSize); 

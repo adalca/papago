@@ -20,6 +20,7 @@ function fwgmm = fit(X, W, K, varargin)
         end
         wg.sigmareg = opt.regularizationValue;
         wg.sigmaopt = opt.regularizationWeight;
+        wg.covarMergeMethod = opt.covarMergeMethod;
 
         % initialize fit
         wg.init(X, W, K, opt.initmethodArgs{:});
@@ -119,6 +120,7 @@ function [X, W, k, opt] = parseInputs(X, W, k, varargin)
     
     p.addParameter('regularizationValue', 1e-7, @isscalar)
     p.addParameter('regularizationWeight', nan, @isscalar)
+    p.addParameter('covarMergeMethod', 'wfact-mult-adapt', @ischar);
     p.addParameter('TolFun', 0.01, @(x) isscalar(x) && x <= 1 && x >= 0);
     
     p.addParameter('verbose', 2, @isIntegerValue);

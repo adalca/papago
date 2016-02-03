@@ -8,21 +8,37 @@ setup
 
 %% parameters
 atlPatchSize = ones(1, 3) * 9; 
+atlPatchSize = ones(1, 3) * 5; 
 atlLoc = LOC_VENTRICLE_EDGE; %LOC_VENTRICLE_EDGE; % LOC_LEFT_CORTEX+10; %LOC_VENTRICLE_EDGE; %LOC_LEFT_CORTEX;
-gmmK = 15; % 5 good for ventricle, 25 for cortex?
+atlLoc = [20, 23, 36];
+gmmK = 5; % 5 good for ventricle, 25 for cortex?
 crmethod = 'inverse'; % 'forward', 'inverse'
 regVal = 1e-4; % regulaization to the diagonal of subjSigma, if using method forward
-reconSubj = 5; %1, 3
+reconSubj = 3; %1, 3
 patchColPad = ones(1, 3) * 2;
 
 % train and test datasets
 traindataset = 'adni';
-testdataset = 'buckner';
+testdataset = 'adni';
 
 % recon params
 keepr = 1;
 subvolLoc = atlLoc - patchColPad;
 subvolSize = atlPatchSize + (2 * patchColPad + 1);
+
+% modalities
+ds = 5;
+us = 2;
+isoSubjInAtlMod = sprintf('brainIso2Ds%dUs%dsizeReg', ds, us);
+dsSubjInAtlMod = sprintf('brainDs%dUs%dReg', ds, us);
+dsSubjInAtlMaskMod = sprintf('brainDs%dUs%dRegMask', ds, us);
+dsSubjInAtlMatMod = sprintf('brainDs%dUs%dRegMat', ds, ds); % note: meant to be ds, ds !
+dsInterpSubjInAtlMod = sprintf('brainDs%dUs%dInterpReg', ds, us);
+
+dsSubjMod = sprintf('brainDs%dUs%d', ds, us);
+dsSubjModMaskMod = sprintf('brainDs%dUs%dMask', ds, us);
+isoSubjMod = sprintf('brainIso2Ds%dUs%dsize', ds, us);
+
 
 %% load buckner volumes and prepare volume data
 % load ADNI full-subject, and buckner full-dataset column.
@@ -31,23 +47,23 @@ subvolSize = atlPatchSize + (2 * patchColPad + 1);
 fnames = fullfile(SYNTHESIS_DATA_PATH, traindataset, 'md', [sys.usrname, '_restor_md_*']);
 trainmd = loadmd(fnames);
 [bucknerIsoPatchCol, ~, volidx] = ...
-    subspacetools.md2patchcol(trainmd, 'brainIso2Ds5Us5sizeReg', atlPatchSize, atlLoc, patchColPad);
+    subspacetools.md2patchcol(trainmd, isoSubjInAtlMod, atlPatchSize, atlLoc, patchColPad);
 [bucknerDsPatchCol, ~, ~] = ...
-    subspacetools.md2patchcol(trainmd, 'brainDs5Us5Reg', atlPatchSize, atlLoc, patchColPad);
+    subspacetools.md2patchcol(trainmd, dsSubjInAtlMod, atlPatchSize, atlLoc, patchColPad);
 [bucknerDsMaskPatchCol, ~, ~] = ...
-    subspacetools.md2patchcol(trainmd, 'brainDs5Us5RegMask', atlPatchSize, atlLoc, patchColPad);
-[bucknerDsInterpPatchCol, ~, ~] = ...
-    subspacetools.md2patchcol(trainmd, 'brainDs5Us5InterpReg', atlPatchSize, atlLoc, patchColPad);
+    subspacetools.md2patchcol(trainmd, dsSubjInAtlMaskMod, atlPatchSize, atlLoc, patchColPad);
+% [bucknerDsInterpPatchCol, ~, ~] = ... 
+%     subspacetools.md2patchcol(trainmd, dsInterpSubjInAtlMod, atlPatchSize, atlLoc, patchColPad);
 
 % load selected ADNI subject volumes
 fnames = fullfile(SYNTHESIS_DATA_PATH, testdataset, 'md', [sys.usrname, '_restor_md_*']);
 testmd = loadmd(fnames);
-dsSubjNii = testmd.loadModality('brainDs5Us5', reconSubj);
+dsSubjNii = testmd.loadModality(dsSubjMod, reconSubj);
 dsSubjVol = double(dsSubjNii.img);
-dsSubjWeightVol = logical(testmd.loadVolume('brainDs5Us5Mask', reconSubj));
-dsSubjInAtlNii = testmd.loadModality('brainDs5Us5Reg', reconSubj);
-dsSubjInAtlMaskVol = testmd.loadVolume('brainDs5Us5RegMask', reconSubj);
-subjInAtlTform = load(testmd.getModality('brainDs5Us5RegMat', reconSubj));
+dsSubjWeightVol = logical(testmd.loadVolume(dsSubjModMaskMod, reconSubj));
+dsSubjInAtlNii = testmd.loadModality(dsSubjInAtlMod, reconSubj);
+dsSubjInAtlMaskVol = testmd.loadVolume(dsSubjInAtlMaskMod, reconSubj);
+subjInAtlTform = load(testmd.getModality(dsSubjInAtlMatMod, reconSubj));
 
 % prepare necessary inputs for conditional-based reconstruction
 subjDims = dsSubjNii.hdr.dime.pixdim(2:4);
@@ -74,12 +90,16 @@ gmmIso = wgmm.gmdist2wgmm(gmmIso);
 
 %% compute wgmm from linearly-interpolated  data with weights
 weightfact = prod(patchColPad*2+1) * 15; % sigma-recon weight threshold
+weightfact = size(bucknerDsPatchCol, 1) ./ 5;
 wgmmopts = {'MaxIter', 20, 'TolFun', 0.001, 'regularizationWeight', weightfact, 'verbose', 1};
 
 % compute the gaussian mixture model
+warning('todo: add spatial smoothness prior to sigma? Read Eugenio Paper!');
 tic
 X = bsxfun(@minus, bucknerDsPatchCol, mean(bucknerDsPatchCol, 2));
-W = bucknerDsMaskPatchCol + 0.00001;
+W = bucknerDsMaskPatchCol + 0.0000000001;
+W = W.^2;
+% W(W < 0.5) = 0.0000000000001;
 gmmDs = wgmmfit(X, W, gmmK, 'regularizationValue', regVal, 'replicates', 3, wgmmopts{:});
 fprintf('Ds wgmm took %3.3f sec\n', toc);
 
@@ -92,7 +112,8 @@ weightfact = prod(patchColPad*2+1) * 15; % sigma-recon weight threshold
 % compute the gaussian mixture model
 tic
 X = bsxfun(@minus, bucknerIsoPatchCol, mean(bucknerIsoPatchCol, 2));
-W = bucknerDsMaskPatchCol + 0.00001;
+W = bucknerDsMaskPatchCol + 0.0000000001;
+W(W < 0.7) = 0.0000000000001;
 gmmIsoW = wgmmfit(X, W, gmmK, 'regularizationValue', regVal, 'replicates', 3, 'MaxIter', 20, 'TolFun', 0.001, 'regularizationWeight', weightfact, 'verbose', 1);
 fprintf('Iso W wgmm took %3.3f sec\n', toc);
 
@@ -128,20 +149,20 @@ fprintf('Iso W gaussian mixture model took %3.3f sec\n', toc);
     dsSubjInAtlNii.img, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArg);
 
 
-%% compute wgmm from interp-based rotated data with high-weights
+%% compute wgmm from linearly-interpolated  data with high-weights
 tic
-X = bsxfun(@minus, bucknerDsInterpPatchCol, mean(bucknerDsInterpPatchCol, 2));
+X = bsxfun(@minus, bucknerDsPatchCol, mean(bucknerDsPatchCol, 2));
 W = bucknerDsMaskPatchCol;
 W(W < 0.9) = 0.00001;
-gmmDsInterpThrW = wgmmfit(X, W, gmmK, 'regularizationValue', regVal, 'replicates', 3, 'MaxIter', 20, 'TolFun', 0.001, 'regularizationWeight', weightfact, 'verbose', 1);
+gmmDsThrW = wgmmfit(X, W, gmmK, 'regularizationValue', regVal, 'replicates', 3, 'MaxIter', 20, 'TolFun', 0.001, 'regularizationWeight', weightfact, 'verbose', 1);
 fprintf('Iso W gaussian mixture model took %3.3f sec\n', toc);
 
-[quiltedSubvolDsInterpThrW] = papago.subvolRecon(gmmDsInterpThrW, subvolLoc, subvolSize, atlPatchSize, crmethod, keepr, ...
+[quiltedSubvolDsThrW] = papago.subvolRecon(gmmDsThrW, subvolLoc, subvolSize, atlPatchSize, crmethod, keepr, ...
     dsSubjInAtlNii.img, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArg);
 
 %% visualize results
 % get real data subvolume
-isoSubjVol = testmd.loadVolume('brainIso2Ds5Us5size', reconSubj);
+isoSubjVol = testmd.loadVolume(isoSubjMod, reconSubj);
 cropIsoSubjVol = cropVolume(isoSubjVol, reconLoc, reconLoc + size(quiltedSubvolIso) - 1); 
 cropIsoSubjVol(isnan(quiltedSubvolIso)) = nan;
 
@@ -158,4 +179,4 @@ cropSubjWeightVolWNans(isnan(quiltedSubvolIso)) = nan;
 
 view3Dopt(cropIsoSubjVol, cropSubjWeightVolWNans, cropDsSubjVolWNans, quiltedSubvolIso, ...
     quiltedSubvolDs, quiltedSubvolIsoW, quiltedSubvolIsoDsW, quiltedSubvolDsinterpDsW, ...
-    quiltedSubvolDsInterpThrW, cntvol);
+    quiltedSubvolDsThrW, cntvol);
