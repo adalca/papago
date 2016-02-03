@@ -24,7 +24,6 @@ function md = restorationmd(dsAmounts, buildpath, savepath, name)
     md.addModality('seg', '%s_seg.nii.gz');
     md.addModality('procBrain', '%s_proc_brain.nii.gz');
     md.addModality('procBrainSeg', '%s_proc_brain_seg.nii.gz');
-    
 
     % rigid registrations directly
     md.addModality('rigidReg', '%s_reg_buckner61.nii.gz');
