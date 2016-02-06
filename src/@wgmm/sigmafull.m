@@ -20,11 +20,28 @@ function [sigma, sigmainv, sigmacore, sigmarecon, sigmamerge] = ...
             sigmarecon(:,:,k) = wgmm.sigmarecon(sigmacore(:,:,k), wtw, methods.recon);
             
             % merge core with reconstruction
-            if strcmp(methods.merge, 'wfact-mult-adapt'), 
-                margs = {opts.mergeargs{:}, size(X, 1), sum(gammank(:, k))};
-            else
-                margs = {opts.mergeargs};
+            switch methods.merge
+                
+                case 'wfact'
+                    margs = {opts.mergeargs};
+                case 'wfact-mult'
+                    margs = {opts.mergeargs};
+                case 'wfact-mult-adapt'
+                    margs = {opts.mergeargs{:}, size(X, 1), sum(gammank(:, k))};
+                case 'freq-prior'                    
+                    margs = {opts.mergeargs{:}};
+                case 'none'
+                    margs = {};
+                otherwise
+                    error('wgmm.sigmafull: Unknown combo method');
             end
+            
+%             
+%             if strcmp(methods.merge, 'wfact-mult-adapt'), 
+%                 margs = {opts.mergeargs{:}, size(X, 1), sum(gammank(:, k))};
+%             else
+%                 margs = {opts.mergeargs};
+%             end
             sigmamerge(:,:,k) = wgmm.sigmamerge(sigmacore(:,:,k), sigmarecon(:,:,k), ...
                 wtw, methods.merge, margs{:});
             sigma(:,:,k) = sigmamerge(:,:,k);

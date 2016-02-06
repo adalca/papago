@@ -119,7 +119,7 @@ function [X, W, k, opt] = parseInputs(X, W, k, varargin)
     p.addParameter('updateMethod', '', @ischar);
     
     p.addParameter('regularizationValue', 1e-7, @isscalar)
-    p.addParameter('regularizationWeight', nan, @isscalar)
+    p.addParameter('regularizationWeight', nan, @(x) isscalar(x) | iscell(x))
     p.addParameter('covarMergeMethod', 'wfact-mult-adapt', @ischar);
     p.addParameter('TolFun', 0.01, @(x) isscalar(x) && x <= 1 && x >= 0);
     
