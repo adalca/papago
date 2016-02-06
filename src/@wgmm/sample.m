@@ -9,12 +9,12 @@ function [sampleX, ks] = sample(gmm, N, X, cidx)
 
     % prep N appropriately
     narginchk(2, 5);
-    K = gmm.K;
+    K = size(gmm.mu, 1);
 
     % sample
     ks = sort(discretesample(gmm.pi, N), 'ascend');
-    sampleXc = cell(gmm.K, 1);
-    for k = 1:gmm.K
+    sampleXc = cell(K, 1);
+    for k = 1:K
     %     w = W(i, :);
     %     sg = (1./w' * (1./w)) .* fwgmm.sigma(:, :, k);
         sampleXc{k} = mvnrnd(gmm.mu(k, :)', gmm.sigma(:, :, k), sum(ks == k));
