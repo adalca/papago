@@ -36,7 +36,7 @@ dsSubjInAtlMatMod = sprintf('brainDs%dUs%dRegMat', ds, ds); % note: meant to be 
 dsInterpSubjInAtlMod = sprintf('brainDs%dUs%dInterpReg', ds, us);
 
 dsSubjMod = sprintf('brainDs%dUs%d', ds, us);
-dsSubjModMaskMod = sprintf('brainDs%dUs%dMask', ds, us);
+dsSubjMaskMod = sprintf('brainDs%dUs%dMask', ds, us);
 isoSubjMod = sprintf('brainIso2Ds%dUs%dsize', ds, us);
 
 
@@ -60,7 +60,7 @@ fnames = fullfile(SYNTHESIS_DATA_PATH, testdataset, 'md', [sys.usrname, '_restor
 testmd = loadmd(fnames);
 dsSubjNii = testmd.loadModality(dsSubjMod, reconSubj);
 dsSubjVol = double(dsSubjNii.img);
-dsSubjWeightVol = logical(testmd.loadVolume(dsSubjModMaskMod, reconSubj));
+dsSubjWeightVol = logical(testmd.loadVolume(dsSubjMaskMod, reconSubj));
 dsSubjInAtlNii = testmd.loadModality(dsSubjInAtlMod, reconSubj);
 dsSubjInAtlMaskVol = testmd.loadVolume(dsSubjInAtlMaskMod, reconSubj);
 subjInAtlTform = load(testmd.getModality(dsSubjInAtlMatMod, reconSubj));
