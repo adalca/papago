@@ -1,8 +1,10 @@
-function [gammank, ll] = estep(wgmm, X, W)
+function [ll, gammank, varargout] = estep(wgmm, X, W)
 % e-step (posteriors)
 
+    varargout = cell(nargout - 2, 1);
+
     % get posterior
-    logpin = wgmm.logpost(X, W); % N x k
+    [logpin, varargout{:}] = wgmm.logpost(X, W); % N x k
     
     % to void overflow, need to subtract the max in log space. so 
     % gamma = pin / sum(pin) where pin = pi * N()
@@ -19,6 +21,11 @@ function [gammank, ll] = estep(wgmm, X, W)
     % Should change! should destory clusters that don''t have any support.
     % warning('estep: adding eps to gamma. TODO: Fix this!');
     % gammank = gammank + eps; 
+    
+    if nargout > 2
+        p = bsxfun(@times, gammank, varargout{1});
+        varargout{1} = squeeze(sum(p, 2));
+    end
     
     % check cleanliness of variable
     assert(isclean(gammank));

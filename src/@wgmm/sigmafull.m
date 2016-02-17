@@ -5,6 +5,7 @@ function [sigma, sigmainv, sigmacore, sigmarecon, sigmamerge] = ...
 
     % compute the core
     sigmacore = wgmm.sigmacore(mu, X, W, K, gammank, methods.core, opts);
+    sumgammank = sum(gammank);
     
     wtw = W' * W;
     
@@ -66,7 +67,8 @@ function [sigma, sigmainv, sigmacore, sigmarecon, sigmamerge] = ...
         % inverse
         [sigmainv(:,:,k), maxd] = invertsigma(sigma(:,:,k));
         if maxd > 1e-3
-            warning('wgmm sigma is bad :( --- max(|S * invS - I|) == %3.5f', maxd);
+            warning('bad %d sigma: max(|S*invS - I|) == %3.5f, sumgammank(k)=%3.2f', ...
+                k, maxd, sumgammank(k));
         end
     end
     

@@ -21,12 +21,14 @@ function sigma = sigmamerge(sigmac, sigmar, wtw, method, varargin)
             fact = fact .* nSubj / nTotalSubj;
             assert(isclean(fact));
             ww = min(wtw, fact) ./ fact;
+            ww = ww ./ max(ww(:));
             mult = median(sigmac(ww == 1) ./ sigmar(ww == 1));
             if ~isclean(mult)
                 warning('mult is not clean: %f', mult);
                 mult = median(sigmac(ww == max(ww(:))) ./ sigmar(ww == max(ww(:))));
             end
             sigma = ww .* sigmac + (1-ww) .* sigmar .* mult;
+%             sigma = sigmac;
             
         case 'freq-prior'
             fact = varargin{1};
@@ -37,6 +39,7 @@ function sigma = sigmamerge(sigmac, sigmar, wtw, method, varargin)
             
             [x, y, z] = ndgrid(1:patchSize(1), 1:patchSize(2), 1:patchSize(3));
             ww = min(wtw, fact) ./ fact;
+            ww = ww ./ max(ww(:));
             
             sincFun = zeros(prod(patchSize), prod(patchSize));
             %sincFun2 = zeros(prod(patchSize), prod(patchSize));
