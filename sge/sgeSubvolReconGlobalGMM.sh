@@ -1,10 +1,10 @@
 #!/bin/bash
 # run subvolume reconstruction
 #
-# >$ sgeSubvolRecon traindatapath testsubjpath ver <inireconfile>
+# >$ sgeSubvolReconGlobalGMM traindatapath testsubjpath ver <inireconfile>
 #
 # examples:
-# ./sgeSubvolRecon.sh /data/vision/polina/scratch/adalca/patchSynthesis/data/adni /data/vision/polina/scratch/adalca/patchSynthesis/data/buckner/proc/buckner01 dec2015
+# ./sgeSubvolReconGlobalGMM.sh /data/vision/polina/scratch/adalca/patchSynthesis/data/adni /data/vision/polina/scratch/adalca/patchSynthesis/data/buckner/proc/buckner01 dec2015
 
 ###############################################################################
 # Settings
