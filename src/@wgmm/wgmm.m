@@ -39,9 +39,10 @@ classdef wgmm < handle
         
         % Update parameters. 
         % Most of these available methods should get cleaned up after development.
-        covarUpdateMethod = 'model3';
-        muUpdateMethod = 'model3';
-        logpUpdateMethod = 'model3';
+        covarUpdateMethod = 'model0';
+        muUpdateMethod = 'model0';
+        logpUpdateMethod = 'model4';
+        model4fn = @(w) diag((-log(w)).^ 2);
         
         covarReconMethod = 'greedy1';
         covarMergeMethod = 'wfact-mult-adapt'; % 'none'
@@ -80,8 +81,8 @@ classdef wgmm < handle
         end
         
         % EM functions
-        logpin = logpost(wg, varargin);
-        [gammank, ll] = estep(wg, X, W);
+        [logpin, varargout] = logpost(wg, varargin);
+        [ll, gammank, varargout] = estep(wg, X, W);
         ll = logp(wg, varargin);
         wg = mstep(wg, X, W, K, gammank);
         wg = init(wg, X, W, K, varargin);

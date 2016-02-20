@@ -11,7 +11,7 @@ atlPatchSize = ones(1, 3) * 9;
 atlPatchSize = ones(1, 3) * 5; 
 atlLoc = LOC_VENTRICLE_EDGE; %LOC_VENTRICLE_EDGE; % LOC_LEFT_CORTEX+10; %LOC_VENTRICLE_EDGE; %LOC_LEFT_CORTEX;
 atlLoc = [20, 23, 36];
-gmmK = 5; % 5 good for ventricle, 25 for cortex?
+gmmK = 15; % 5 good for ventricle, 25 for cortex?
 crmethod = 'inverse'; % 'forward', 'inverse'
 regVal = 1e-4; % regulaization to the diagonal of subjSigma, if using method forward
 reconSubj = 3; %1, 3
@@ -36,7 +36,7 @@ dsSubjInAtlMatMod = sprintf('brainDs%dUs%dRegMat', ds, ds); % note: meant to be 
 dsInterpSubjInAtlMod = sprintf('brainDs%dUs%dInterpReg', ds, us);
 
 dsSubjMod = sprintf('brainDs%dUs%d', ds, us);
-dsSubjModMaskMod = sprintf('brainDs%dUs%dMask', ds, us);
+dsSubjMaskMod = sprintf('brainDs%dUs%dMask', ds, us);
 isoSubjMod = sprintf('brainIso2Ds%dUs%dsize', ds, us);
 
 
@@ -60,7 +60,7 @@ fnames = fullfile(SYNTHESIS_DATA_PATH, testdataset, 'md', [sys.usrname, '_restor
 testmd = loadmd(fnames);
 dsSubjNii = testmd.loadModality(dsSubjMod, reconSubj);
 dsSubjVol = double(dsSubjNii.img);
-dsSubjWeightVol = logical(testmd.loadVolume(dsSubjModMaskMod, reconSubj));
+dsSubjWeightVol = logical(testmd.loadVolume(dsSubjMaskMod, reconSubj));
 dsSubjInAtlNii = testmd.loadModality(dsSubjInAtlMod, reconSubj);
 dsSubjInAtlMaskVol = testmd.loadVolume(dsSubjInAtlMaskMod, reconSubj);
 subjInAtlTform = load(testmd.getModality(dsSubjInAtlMatMod, reconSubj));
@@ -91,15 +91,17 @@ gmmIso = wgmm.gmdist2wgmm(gmmIso);
 %% compute wgmm from linearly-interpolated  data with weights
 weightfact = prod(patchColPad*2+1) * 15; % sigma-recon weight threshold
 weightfact = size(bucknerDsPatchCol, 1) ./ 5;
-wgmmopts = {'MaxIter', 20, 'TolFun', 0.001, 'regularizationWeight', weightfact, 'verbose', 1};
+% weightfact = 1000;
+wgmmopts = {'MaxIter', 20, 'TolFun', 0.001, 'regularizationWeight', {weightfact, atlPatchSize}, 'verbose', 1, 'covarMergeMethod', 'freq-prior'};
+%wgmmopts = {'MaxIter', 20, 'TolFun', 0.001, 'regularizationWeight', {weightfact}, 'verbose', 1, 'covarMergeMethod', 'wfact-mult-adapt'};
 
 % compute the gaussian mixture model
 warning('todo: add spatial smoothness prior to sigma? Read Eugenio Paper!');
 tic
 X = bsxfun(@minus, bucknerDsPatchCol, mean(bucknerDsPatchCol, 2));
 W = bucknerDsMaskPatchCol + 0.0000000001;
-W = W.^2;
-% W(W < 0.5) = 0.0000000000001;
+W = W.^3;
+% W(W < 0.9) = 0.0000000000001;
 gmmDs = wgmmfit(X, W, gmmK, 'regularizationValue', regVal, 'replicates', 3, wgmmopts{:});
 fprintf('Ds wgmm took %3.3f sec\n', toc);
 

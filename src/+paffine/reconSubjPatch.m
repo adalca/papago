@@ -1,4 +1,4 @@
-function [reconPatch, invBb] = reconSubjPatch(subjPatch, subjWeightPatch, subjPatchValidRegion, subjMu, subjSigma)
+function [reconPatch, invBb, varargout] = reconSubjPatch(subjPatch, subjWeightPatch, subjPatchValidRegion, subjMu, subjSigma)
 % RECONSUBJPATCH reconstruct a subject-space patch
 %
 % subjPatch is the whole patch in subject space
@@ -11,6 +11,11 @@ function [reconPatch, invBb] = reconSubjPatch(subjPatch, subjWeightPatch, subjPa
 % reconPatch is the same size as subjPatch, with all the voxels inside the subjPatchValidRegion
 % invBb is a potentially-useful matrix of inv(B) * b, where b is the vector of mean-centered known
 % and valid voxels, and B is the covariance of those voxels.
+    
+    varargout = {};
+    if nargout > 2
+        varargout = {[]};
+    end
 
     % get the part of the subject patch corresponding to the atlas patch
     subjPatchWithNans = subjPatch;
@@ -20,7 +25,8 @@ function [reconPatch, invBb] = reconSubjPatch(subjPatch, subjWeightPatch, subjPa
     % impute the voxels
     selSubjMu = subjMu(subjPatchValidRegion);
     selSubjSigma = subjSigma(subjPatchValidRegion, subjPatchValidRegion);
-    [subjPatchAtlReconVoxels, invBb] = inpaintWithGaussConditional(subjPatchAtlVoxels(:), selSubjMu, selSubjSigma);
+    [subjPatchAtlReconVoxels, invBb, varargout{:}] = ...
+        inpaintWithGaussConditional(subjPatchAtlVoxels(:), selSubjMu, selSubjSigma);
     
     % recon the subject patch
     reconPatch = nan(size(subjPatch));

@@ -30,8 +30,11 @@ function [reconPatch, subjPatchMins, logp] = recon(atlMu, atlSigma, atlLoc, atlP
            
     % reconstruct the patch
     subjPatch = cropVolume(subjVol, subjPatchMins, subjPatchMins + subjPatchSize - 1);
+    %m = mean(subjPatch(:));
+    %subjPatch = subjPatch - m;
     subjWeightPatch = cropVolume(subjWeightVol, subjPatchMins, subjPatchMins + subjPatchSize - 1);
     [reconPatch, invBb] = paffine.reconSubjPatch(subjPatch, subjWeightPatch, subjInterpMask, subjMu, subjSigma);
+    %reconPatch = reconPatch + m;
     
     % compute the logp
     if nargout > 2

@@ -102,7 +102,7 @@ function [sigma, sigmainv] = sigmaupdate(wg, X, W, K, gammank)
     
     methods = struct('core', wg.covarUpdateMethod, 'recon', wg.covarReconMethod, ...
         'merge', wg.covarMergeMethod);
-    opts = struct('mergeargs', wg.sigmaopt, 'sigmareg', wg.sigmareg);
+    opts = struct('mergeargs', {wg.sigmaopt}, 'sigmareg', wg.sigmareg);
     if ~iscell(opts.mergeargs)
         opts.mergeargs = {opts.mergeargs};
     end

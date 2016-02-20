@@ -5,6 +5,7 @@ function [sigma, sigmainv, sigmacore, sigmarecon, sigmamerge] = ...
 
     % compute the core
     sigmacore = wgmm.sigmacore(mu, X, W, K, gammank, methods.core, opts);
+    sumgammank = sum(gammank);
     
     wtw = W' * W;
     
@@ -20,11 +21,28 @@ function [sigma, sigmainv, sigmacore, sigmarecon, sigmamerge] = ...
             sigmarecon(:,:,k) = wgmm.sigmarecon(sigmacore(:,:,k), wtw, methods.recon);
             
             % merge core with reconstruction
-            if strcmp(methods.merge, 'wfact-mult-adapt'), 
-                margs = {opts.mergeargs{:}, size(X, 1), sum(gammank(:, k))};
-            else
-                margs = {opts.mergeargs};
+            switch methods.merge
+                
+                case 'wfact'
+                    margs = {opts.mergeargs};
+                case 'wfact-mult'
+                    margs = {opts.mergeargs};
+                case 'wfact-mult-adapt'
+                    margs = {opts.mergeargs{:}, size(X, 1), sum(gammank(:, k))};
+                case 'freq-prior'                    
+                    margs = {opts.mergeargs{:}};
+                case 'none'
+                    margs = {};
+                otherwise
+                    error('wgmm.sigmafull: Unknown combo method');
             end
+            
+%             
+%             if strcmp(methods.merge, 'wfact-mult-adapt'), 
+%                 margs = {opts.mergeargs{:}, size(X, 1), sum(gammank(:, k))};
+%             else
+%                 margs = {opts.mergeargs};
+%             end
             sigmamerge(:,:,k) = wgmm.sigmamerge(sigmacore(:,:,k), sigmarecon(:,:,k), ...
                 wtw, methods.merge, margs{:});
             sigma(:,:,k) = sigmamerge(:,:,k);
@@ -49,7 +67,8 @@ function [sigma, sigmainv, sigmacore, sigmarecon, sigmamerge] = ...
         % inverse
         [sigmainv(:,:,k), maxd] = invertsigma(sigma(:,:,k));
         if maxd > 1e-3
-            warning('wgmm sigma is bad :( --- max(|S * invS - I|) == %3.5f', maxd);
+            warning('bad %d sigma: max(|S*invS - I|) == %3.5f, sumgammank(k)=%3.2f', ...
+                k, maxd, sumgammank(k));
         end
     end
     

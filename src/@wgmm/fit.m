@@ -3,6 +3,7 @@ function fwgmm = fit(X, W, K, varargin)
 
     % parse inputs
     [X, W, K, opt] = parseInputs(X, W, K, varargin{:});
+    X0 = X;
     
     % go through different replicates. at each replicate, create a new wgmm object. Return the one
     % with the best log likelihood.
@@ -21,16 +22,28 @@ function fwgmm = fit(X, W, K, varargin)
         wg.sigmareg = opt.regularizationValue;
         wg.sigmaopt = opt.regularizationWeight;
         wg.covarMergeMethod = opt.covarMergeMethod;
+        wg.model4fn = opt.model4fn;
 
         % initialize fit
         wg.init(X, W, K, opt.initmethodArgs{:});
+        
+        if strcmp(wg.logpUpdateMethod, 'model4')
+            fprintf(2, 'wgmm.fit: Using hack Initialization heuristic where we randomly sample X from Xinit. Should Decide if we want this');
+            for i = 1:size(X, 1)
+                X(i, :) = mvnrnd(X0(i, :), wg.model4fn(W(i,:)));
+            end
+        end            
         
         % initialize counters
         llpchange = 1;
         ll = [];
         
         % First E step and ll
-        [gammank, ll(1)] = wg.estep(X, W);
+        if strcmp(wg.logpUpdateMethod, 'model4')
+            [ll(1), gammank, betan] = wg.estep(X, W);
+        else
+            [ll(1), gammank] = wg.estep(X, W);
+        end
         
         % print inital ll
         printiter(wg, opt, ll, r);
@@ -40,10 +53,20 @@ function fwgmm = fit(X, W, K, varargin)
         while (llpchange > opt.TolFun) && ct <= opt.maxIter
 
             % M step
-            wg.mstep(X, W, K, gammank);
+            if strcmp(wg.logpUpdateMethod, 'model4')
+                assert(strcmp(wg.covarUpdateMethod, 'model0'));
+                assert(strcmp(wg.muUpdateMethod, 'model0'));
+                wg.mstep(betan, W*0+1, K, gammank);
+            else
+                wg.mstep(X, W, K, gammank);
+            end
             
             % E step
-            [gammank, ll(ct+1)] = wg.estep(X, W);
+            if strcmp(wg.logpUpdateMethod, 'model4')
+                [ll(ct+1), gammank, betan] = wg.estep(X, W);
+            else
+                [ll(ct+1), gammank] = wg.estep(X, W);
+            end
 
             % check log likelihood
             sys.warnif(~(ll(ct+1) >= ll(ct)), sprintf('log lik went down in repl:%d iter:%d', r, ct));
@@ -119,9 +142,11 @@ function [X, W, k, opt] = parseInputs(X, W, k, varargin)
     p.addParameter('updateMethod', '', @ischar);
     
     p.addParameter('regularizationValue', 1e-7, @isscalar)
-    p.addParameter('regularizationWeight', nan, @isscalar)
-    p.addParameter('covarMergeMethod', 'wfact-mult-adapt', @ischar);
+    p.addParameter('regularizationWeight', nan, @(x) isscalar(x) | iscell(x))
+    %p.addParameter('covarMergeMethod', 'wfact-mult-adapt', @ischar);
+    p.addParameter('covarMergeMethod', 'none', @ischar);
     p.addParameter('TolFun', 0.01, @(x) isscalar(x) && x <= 1 && x >= 0);
+    p.addParameter('model4fn', @(w) diag((-log(w)).^ 2), @isfunc);
     
     p.addParameter('verbose', 2, @isIntegerValue);
     p.addParameter('debug', false, @islogical);

@@ -1,4 +1,4 @@
-function logpin = logpost(gmm, X, W)
+function [logpin, varargout] = logpost(gmm, X, W)
 % compute log posterior
 %   p(params|x) = p(params) * p(x|params) = pi * N(X; mu, owowt .* sigma)
 %   logpin (log pi n) is N x K
@@ -7,6 +7,7 @@ function logpin = logpost(gmm, X, W)
     % prepare convenient variables
     [N, D] = size(X);    
     K = size(gmm.mu, 1);
+    varargout = {};
     
     switch gmm.logpUpdateMethod
         case 'model0' % no weights
@@ -14,7 +15,7 @@ function logpin = logpost(gmm, X, W)
             logpin = bsxfun(@plus, log(gmm.pi), wgmm.logmvnpdf(X, gmm.mu, gmm.sigma));
             assert(isclean(logpin), 'log(pi*n) is unclean');
         
-        case 'memsafe'
+        case 'model1-memsafe'
     
             % main implementation, mainly because it's fast.
             % change what sigma is, but need to add back logdetIow.
@@ -147,6 +148,38 @@ function logpin = logpost(gmm, X, W)
 %                 end
             end
             assert(isclean(logpin), 'log(pi*n) is unclean');
+            
+        case 'model4'
+            % compute gammank. This will be low since we have to invert for 8each * subject. 
+            % perhaps we could approximate it?
+            maxd = 0.0001;
+            
+            logpin = zeros(N, K);
+            murnk = zeros(N, K, D);
+            for k = 1:K
+                muk = gmm.mu(k, :);
+                sigmak = gmm.sigma(:,:,k);
+                
+                for i = 1:N
+                    w = W(i, :);
+                    % Di = diag((-log(w)).^ 2);
+                    Di = gmm.model4fn(w);
+                    
+                    % this method fails, try an adjaceny matrix, so that you collerate Di.
+                    
+                    sigma = sigmak + Di;
+                    x = X(i, :);
+                    
+                    % consider pre-computing sigma inverse. But that's slow an dimprecise. 
+                    % sigmainv = inv(sigma);
+                    
+                    logpin(i, k) = log(gmm.pi(k)) + wgmm.logmvnpdf(x, muk, sigma);                    
+                    murnk(i, k, :) = reshape((sigmak / sigma) * (x - muk)' + muk', [1, 1, D]);
+                end
+            end
+            varargout{1} = murnk;
+            assert(isclean(logpin), 'log(pi*n) is unclean');
+            assert(isclean(murnk), 'log(pi*n) is unclean');
             
         otherwise
             error('unknown logp method');
