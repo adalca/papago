@@ -89,7 +89,7 @@ do
       $sgecmd
 
       echo "done subvolRecon queue r:${r} gGMM:${K} i:${i}"
-      sleep 1
+      #sleep 1
     done
   done
 done
