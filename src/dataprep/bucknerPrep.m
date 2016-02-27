@@ -11,7 +11,7 @@ moveOrig2Proc = false; % move initial files from original folder to processing f
 getmdmethod = 'load'; % 'load', 'build', or 'none'
 name = 'buckner';
 domdproc = false; % already done.
-dsAmounts = 2:5;
+dsAmounts = 2:7;
 intensityNorm = 255;
 procdsRate = 5;
 

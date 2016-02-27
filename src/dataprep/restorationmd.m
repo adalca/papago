@@ -45,6 +45,9 @@ function md = restorationmd(dsAmounts, buildpath, savepath, name)
 
         mod = sprintf('%s_brain_roc_downsampled%d.nii.gz', '%s', s);
         md.addModality(sprintf('brainDs%d', s), mod);
+        
+        mod = sprintf('%s_brain_roc_downsampled%d_seg.nii.gz', '%s', s);
+        md.addModality(sprintf('brainDs%dSeg', s), mod);
 
         mod = sprintf('%s_brain_cropped%d.nii.gz', '%s', s);
         md.addModality(sprintf('brainCropped%d', s), mod);
@@ -119,6 +122,19 @@ function md = restorationmd(dsAmounts, buildpath, savepath, name)
             mod = sprintf('%s_brain_reg_downsampled%d_reinterpolated%d_dsmask_nn.nii.gz', '%s', s, u);
             md.addModality(sprintf('regBrainDs%dUs%dNNMask', s, u), mod);    
         end
+        
+        mod = sprintf('%s_brain_iso_2_ds%d_us2_size__ds2us2.nii.gz', '%s', s);
+        md.addModality(sprintf('brainIso2Ds%dUs2size_Ds2Us2', s), mod); 
+
+        mod = sprintf('%s_brain_iso_2_ds%d_us2_size__ds2us2Mask.nii.gz', '%s', s);
+        md.addModality(sprintf('brainIso2Ds%dUs2size_Ds2Us2Mask', s), mod); 
+        
+        mod = sprintf('%s_brain_iso_2_ds%d_us2_size__ds2us2_reg.nii.gz', '%s', s);
+        md.addModality(sprintf('brainIso2Ds%dUs2size_Ds2Us2Reg', s), mod); 
+        
+        mod = sprintf('%s_brain_iso_2_ds%d_us2_size__ds2us2Mask_reg.nii.gz', '%s', s);
+        md.addModality(sprintf('brainIso2Ds%dUs2size_Ds2Us2MaskReg', s), mod); 
+        
     end
 
     %% add rebuilt modalities
