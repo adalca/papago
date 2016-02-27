@@ -1,4 +1,4 @@
-dsAmounts = 2:5;
+dsAmounts = 2:7;
 intensityNorm = 255;
 
 %% process atlas
@@ -17,7 +17,7 @@ atlnii = loadNii(BUCKNER_ATLAS_MODS.BUCKNER_ATLAS_BRAIN_PROC);
 atlvol = atlnii.img;
 
 for s = dsAmounts % downsample amount        
-    for u = 2:s % upsample amount
+    for u = 1:s % upsample amount
         
         % downsample atlas nii
         sz = round(size(atlvol) ./ s * u);
