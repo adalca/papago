@@ -11,7 +11,7 @@ moveOrig2Proc = false; % move initial files from original folder to processing f
 getmdmethod = 'load'; % 'load', 'build', or 'none'
 name = 'adni';
 domdproc = false; % already done.
-dsAmounts = 2:7;
+dsAmounts = 1:7;
 intensityNorm = 255;
 procdsRate = 5;
 
