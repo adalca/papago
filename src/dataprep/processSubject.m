@@ -6,9 +6,13 @@ function processSubject(md, subjid, dsRate, intensityNorm, atlMods, preregmod)
     if ischar(subjid) && ~isempty(str2double(subjid)), subjid = str2double(subjid); end
     if ischar(intensityNorm), intensityNorm = str2double(intensityNorm); end
     if ischar(atlMods), load(atlMods); end
-
+	if ischar(dsRate) dsRate = str2double(dsRate); end
+	
     % us rates
     usRates = 1:dsRate;
+    
+    % decide whether to do segmentations
+    doseg = sys.isfile(md.getModality('seg', subjid));
     
     %% normalize intensity transform images to be between 0 to 1, and crop to a bounding box 
     md.normalize('brain', intensityNorm, 'procBrain', 'include', subjid);
@@ -18,10 +22,11 @@ function processSubject(md, subjid, dsRate, intensityNorm, atlMods, preregmod)
     mdBoundingBoxRange(md, 'procBrain', 'procBrain', 'include', subjid);
     % do the same to segmentation
     [~,~,bbrange] = boundingBoxNii(md.getModality('brain', subjid));
-    nii = md.loadModality('seg', subjid);
-    vol = nii.img(bbrange{:});
-    md.saveModality(makeNiiLike(vol, nii), 'procBrainSeg', subjid);
-    
+    if doseg
+        nii = md.loadModality('seg', subjid);
+        vol = nii.img(bbrange{:});
+        md.saveModality(makeNiiLike(vol, nii), 'procBrainSeg', subjid);
+    end    
     
     %% fix pixel dimensions since we assume [1, 1, 1]
     % make sure pix dimentions are close enough
@@ -41,8 +46,10 @@ function processSubject(md, subjid, dsRate, intensityNorm, atlMods, preregmod)
     brainDs = sprintf('brainDs%d', dsRate);
     md.applyfun(@(x, y) downsampleNii(x, [1, 1, dsRate], y), {'procBrain', brainDs}, 'include', subjid);
     % DsSeg - downsample Segmentation to dsRate
-    brainDsSeg = sprintf('brainDs%dSeg', dsRate);
-    md.applyfun(@(x, y) downsampleNii(x, [1, 1, dsRate], y), {'procBrainSeg', brainDsSeg}, 'include', subjid);        
+    if doseg
+        brainDsSeg = sprintf('brainDs%dSeg', dsRate);
+        md.applyfun(@(x, y) downsampleNii(x, [1, 1, dsRate], y), {'procBrainSeg', brainDsSeg}, 'include', subjid);        
+    end
 
     %% re-upsample
     % DsUs - upsample Ds volumes to usRate
@@ -72,9 +79,11 @@ function processSubject(md, subjid, dsRate, intensityNorm, atlMods, preregmod)
     brainDsDs = sprintf('brainDs%dUs%d', dsRate, dsRate);
     md.applyfun(pni, {'procBrain', brainCropped, brainCroppedMask, brainDsDs}, 'include', subjid);
     % crop iso seg to match DsXUsX
-    brainCroppedSeg = sprintf('brainCropped%dSeg', dsRate);
-    brainCroppedMask = sprintf('brainCropped%dMask', dsRate);
-    md.applyfun(pni, {'procBrainSeg', brainCroppedSeg, brainCroppedMask, sprintf('brainDs%dUs%d', dsRate, dsRate)}, 'include', subjid);
+    if doseg
+        brainCroppedSeg = sprintf('brainCropped%dSeg', dsRate);
+        brainCroppedMask = sprintf('brainCropped%dMask', dsRate);
+        md.applyfun(pni, {'procBrainSeg', brainCroppedSeg, brainCroppedMask, sprintf('brainDs%dUs%d', dsRate, dsRate)}, 'include', subjid);
+    end
 
     % resize iso to match DsXUsX size
     for usRate = usRates
@@ -138,9 +147,11 @@ function processSubject(md, subjid, dsRate, intensityNorm, atlMods, preregmod)
             'saveModality', brainIso2DsUssizeReg, 'loadtformModality', preregmod, 'include', subjid);
         
         % segmentations
-        brainDsUsRegSeg = sprintf('brainIso2Ds%dUs%dsizeRegSeg', dsRate, dsRate); % use the original Ds5Us5!
-        md.register(brainCroppedSeg, atlfile, 'rigid', 'multimodal', ...
-            'saveModality', brainDsUsRegSeg, 'loadtformModality', preregmod, 'registeredVolumeInterp', 'nearest', 'include', subjid);
+        if doseg
+            brainDsUsRegSeg = sprintf('brainIso2Ds%dUs%dsizeRegSeg', dsRate, dsRate); % use the original Ds5Us5!
+            md.register(brainCroppedSeg, atlfile, 'rigid', 'multimodal', ...
+                'saveModality', brainDsUsRegSeg, 'loadtformModality', preregmod, 'registeredVolumeInterp', 'nearest', 'include', subjid);
+        end
     end
     
     %% special case: warp of Iso-DsXUs2-Ds2Us2
