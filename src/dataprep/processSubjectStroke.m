@@ -11,7 +11,7 @@ function processSubjectStroke(md, subjid, intensityNorm, atlMods, preregmod)
     brainnii = md.loadModality('brain', subjid);
     dsRate = round(brainnii.hdr.dime.pixdim(4) ./ brainnii.hdr.dime.pixdim(2));
     assert(dsRate == (round(brainnii.hdr.dime.pixdim(4) ./ brainnii.hdr.dime.pixdim(3))));
-    dsRate = str2double(dsRate);
+    assert(isclean(dsRate));
     
     % us rates
     usRates = 1:dsRate;
@@ -33,16 +33,19 @@ function processSubjectStroke(md, subjid, intensityNorm, atlMods, preregmod)
     % DsUs - upsample Ds volumes to usRate
     for usRate = usRates
         % modality names for this dsRate and usRate
+        brainDsIso = sprintf('brainDs%dIso%d', dsRate, usRate); % this is isotropic in slices, but downsampled in z.
         brainDsUs = sprintf('brainDs%dUs%d', dsRate, usRate);
         brainDsUsMark = sprintf('brainDs%dUs%dMask', dsRate, usRate);
         brainDsUsNN = sprintf('brainDs%dUs%dNN', dsRate, usRate);
         brainDsUsNNMark = sprintf('brainDs%dUs%dNNMask', dsRate, usRate);
 
         % prepare functions to upsample
+        dsfn = @(x, y) downsampleNii(x, [dsRate/usRate, dsRate/usRate, 1], y, false, 'nn');
         usfnlin = @(x, y, m) upsampleNii(x, y, m, 'linear', 0, [1, 1, usRate], true);
         usfnnn = @(x, y, m) upsampleNii(x, y, m, 'nearest', 0, [1, 1, usRate], true);
 
         % first, downsample to isotropic low-quality size
+        md.applyfun(dsfn, {brainDs, brainDsIso}, 'include', subjid); % meant to be upsampled to an isotropic-resolution (but bad quality) after ds.
         md.applyfun(usfnlin, {brainDsIso, brainDsUs, brainDsUsMark}, 'include', subjid);
         md.applyfun(usfnnn, {brainDsIso, brainDsUsNN, brainDsUsNNMark}, 'include', subjid);
     end
