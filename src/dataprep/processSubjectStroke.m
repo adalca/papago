@@ -53,7 +53,7 @@ function processSubjectStroke(md, subjid, intensityNorm, atlMods, preregmod)
     %% Perform affine registration via DsXUsX rigid registration
     % TODO: NN versions
     if ~exist('preregmod', 'var')
-        atlfile = eval(sprintf('atlMods.BUCKNER_ATLAS_BRAIN_PROC_DS%d_US%d', dsRate, dsRate));
+        atlfile = eval(sprintf('atlMods.STROKE_ATLAS_BRAIN_PROC_DS%d_US%d', dsRate, dsRate));
         preregmod = sprintf('brainDs%dUs%dRegMat', dsRate, dsRate);
         brainDsUsReg = sprintf('brainDs%dUs%dReg', dsRate, usRate);
         md.register(brainDsUs, atlfile, 'rigid', 'multimodal', ...
@@ -63,7 +63,7 @@ function processSubjectStroke(md, subjid, intensityNorm, atlMods, preregmod)
     usRatesSorted = sort(usRates, 'descend');
     for usRate = usRatesSorted
         % prepare atlas file (for applying warp)
-        atlfile = eval(sprintf('atlMods.BUCKNER_ATLAS_BRAIN_PROC_DS%d_US%d', dsRate, usRate));
+        atlfile = eval(sprintf('atlMods.STROKE_ATLAS_BRAIN_PROC_DS%d_US%d', dsRate, usRate));
 
         % modality names for this dsRate and usRate
         brainDsUs = sprintf('brainDs%dUs%d', dsRate, usRate);
