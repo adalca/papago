@@ -18,7 +18,7 @@ function train(infile, volnames, outfile, patchSize, K, nSamples, model, varargi
 %   
 %   K - scalar, number of clusters 
 %   
-%   nSampled - number of patches fo be sampled
+%   nSampled - number of patches to be sampled
 %       0 - all, (0, 1] - fraction of patches, int > 1 - specific number.
 %   
 %   model - 'model0' (non-weighted) or 'model3' (latest weighted model)
