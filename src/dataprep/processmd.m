@@ -9,29 +9,60 @@ function processmd(md, dsRate, intensityNorm, atlmods, steps)
 % TODO: have a parameter for forcing overwrite or skipping wherever
 % possible/necessary, etc
 
+    warning('add asserts');
+    
     narginchk(4, 5);
     if nargin == 4
-        steps = {'normalize', 'DsUs', 'isoreg', 'dsusreg', 'matfile', 'visualize'};
+        steps = {'normalize', 'fixdims', 'DsUs', 'isoreg', 'dsusreg'};%, 'matfile', 'visualize'};
     end
     
     usRates = 1:dsRate;
 
+  
+    
     %% normalize intensity and size
     if ismember('normalize', steps);
         % transform images to be between 0 to 1, and crop to a bounding box 
         md.normalize('brain', intensityNorm, 'procBrain');
         
-        [~, ~, bbrange, ~] = md.boundingBox('procBrain', 'procBrain');
+        % get bounding boxes
+        % [~, ~, bbrange, ~] = md.boundingBox('procBrain', 'procBrain');
+        bbrange = mdBoundingBoxRange(md, 'procBrain', 'procBrain');
     end
 
+    %% fix pixel dimensions since we assume [1, 1, 1]
+    if ismember('fixdims', steps);
+        % make sure pix dimentions are close enough
+        vi = verboseIter(1:md.getNumSubjects);
+        while vi.hasNext; i = vi.next;
+            h = md.loadModality('procBrain', i);
+            pixdim = h.hdr.dime.pixdim(2:4);
+            rpixdim = round(pixdim);
+            if all(pixdim == rpixdim)
+                continue;
+            else
+                assert(all(isclose(rpixdim, pixdim, 0.001)));
+                fprintf('%d diff: %e\n', i, mean(abs(pixdim - rpixdim)));
+                h.hdr.dime.pixdim(2:4) = rpixdim;
+                md.saveModality(h, 'procBrain', i);
+            end  
+        end
+        vi.close();
+    end
+    
     %% downsample and upsample 
+    if ismember('DsSeg', steps);
+        brainDsSeg = sprintf('brainDs%dSeg', dsRate);
+        md.applyfun(@(x, y) downsampleNii(x, [1, 1, dsRate], y), {'procBrainSeg', brainDsSeg});        
+    end
+    
     if ismember('DsUs', steps);
         brainDs = sprintf('brainDs%d', dsRate);
         md.applyfun(@(x, y) downsampleNii(x, [1, 1, dsRate], y), {'procBrain', brainDs});
 
         for usRate = usRates
             % modality names for this dsRate and usRate
-            brainDsIso = sprintf('brainDs%dIso%d', dsRate, usRate);
+            brainDsIso = sprintf('brainDs%dIso%d', dsRate, usRate); % this is isotropic in slices, but downsamples in z.
             brainDsUs = sprintf('brainDs%dUs%d', dsRate, usRate);
             brainDsUsMark = sprintf('brainDs%dUs%dMask', dsRate, usRate);
             brainDsUsNN = sprintf('brainDs%dUs%dNN', dsRate, usRate);
@@ -61,6 +92,21 @@ function processmd(md, dsRate, intensityNorm, atlmods, steps)
             brainIsoDsUssize = sprintf('brainIso2Ds%dUs%dsize', dsRate, usRate);
             md.applyfun(dsfn, {brainCropped, brainIsoDsUssize}); 
         end
+        
+        % check equality
+        vi = verboseIter(1:md.getNumSubjects);
+        while vi.hasNext, i = vi.next();
+            dsSubjMod = sprintf('brainDs%dUs%d', dsRate, dsRate);
+            dsSubjModMaskMod = sprintf('brainDs%dUs%dMask', dsRate, dsRate);
+            isoSubjMod = sprintf('brainIso2Ds%dUs%dsize', dsRate, dsRate);
+            
+            subjiso = md.loadVolume(isoSubjMod, i);
+            subjds = md.loadVolume(dsSubjMod, i);
+            subjdsmask = md.loadVolume(dsSubjModMaskMod, i);
+            err = abs(subjds - subjiso);
+            mean(err(subjdsmask(:) > 0))
+        end
+        vi.close();
     end
 
     %% Perform registration via iso rigid registration
@@ -103,7 +149,7 @@ function processmd(md, dsRate, intensityNorm, atlmods, steps)
 
             brainDsUsReg = sprintf('brainDs%dUs%dReg', dsRate, usRate);
             brainDsUsRegMask = sprintf('brainDs%dUs%dRegMask', dsRate, usRate);
-            brainDsUsRegMat = sprintf('brainDs%dUs%dRegMat', dsRate, dsRate); % use the original Ds5Us5 !
+            brainDsUsRegMat = sprintf('brainDs%dUs%dRegMat', 5, 5); % use the original Ds5Us5 !
             brainIso2DsUssizeReg = sprintf('brainIso2Ds%dUs%dsizeReg', dsRate, usRate);
 
             % apply "dsXusX" registration to modality and to mask
@@ -125,6 +171,8 @@ function processmd(md, dsRate, intensityNorm, atlmods, steps)
     
     %% seg
     if ismember('seg-inprogress', steps); % unfinished.
+        % [~, ~, bbrange, ~] = md.boundingBox('brain');
+        bbrange = mdBoundingBoxRange('brain');
         for i = 1:md.getNumSubjects()
             nii = md.loadModality('seg', i);
             vol = nii.img(bbrange{i}{:});
@@ -133,31 +181,32 @@ function processmd(md, dsRate, intensityNorm, atlmods, steps)
         
         % crop iso to match DsXUsX
         pni = @(x, y, m, v) padNii(x, y, m, size(nii2vol(v)) - size(nii2vol(x)), 'post');
-        brainCropped = sprintf('brainCropped%dSeg', dsRate);
+        brainCroppedSeg = sprintf('brainCropped%dSeg', dsRate);
         brainCroppedMask = sprintf('brainCropped%dMask', dsRate);
-        md.applyfun(pni, {'procBrainSeg', brainCropped, brainCroppedMask, sprintf('brainDs%dUs%d', dsRate, dsRate)});
+        md.applyfun(pni, {'procBrainSeg', brainCroppedSeg, brainCroppedMask, sprintf('brainDs%dUs%d', dsRate, dsRate)});
         
         % propagate registration
         usRate = dsRate;
         atlfile = eval(sprintf('atlmods.BUCKNER_ATLAS_BRAIN_PROC_DS%d_US%d', dsRate, usRate));
-        brainDsUsRegMat = sprintf('brainDs%dUs%dRegMat', dsRate, dsRate); % use the original Ds5Us5!
+        brainDsUsRegMat = sprintf('brainDs%dUs%dRegMat', 5, 5); % use the original Ds5Us5!
         brainDsUsRegSeg = sprintf('brainIso2Ds%dUs%dsizeRegSeg', dsRate, dsRate); % use the original Ds5Us5!
-        md.register(brainCropped, atlfile, 'rigid', 'multimodal', ...
+        md.register(brainCroppedSeg, atlfile, 'rigid', 'multimodal', ...
             'saveModality', brainDsUsRegSeg, 'loadtformModality', brainDsUsRegMat, 'registeredVolumeInterp', 'nearest');
     end
     
-%% mdInterpmatWarp(md, dsmod, dsusmaskmod, rmod, atlvol, regmod)
+    %% mdInterpmatWarp(md, dsmod, dsusmaskmod, rmod, atlvol, regmod)
 % Transform medicalDataset sparse-slice volumes according to sparse-slice interpolant matrix, as
 % opposed to warping dsXusX images
 
-    dsmod = 'brainDs5Us5Mask';
-    dsusmaskmod = 'brainDs5Us5InterpMat';
-    rmod = 'brainDs5Us5Regwcor';
-    atlvol = BUCKNER_ATLAS_MODS.BUCKNER_ATLAS_BRAIN_PROC_DS5_US5;
-    regmod = 'brainDs5Us5InterpReg';
-
     if ismember('mdInterpmatWarp', steps); % unfinished.
 
+        dsmod = 'brainDs5Us5Mask';
+        dsusmaskmod = 'brainDs5Us5InterpMat';
+        rmod = 'brainDs5Us5Regwcor';
+        atlvol = BUCKNER_ATLAS_MODS.BUCKNER_ATLAS_BRAIN_PROC_DS5_US5;
+        regmod = 'brainDs5Us5InterpReg';
+
+        
         atlnii = loadNii(atlvol);
 
         vi = verboseIter(1:md.getNumSubjects, 2);

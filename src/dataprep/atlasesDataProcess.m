@@ -1,36 +1,30 @@
-dsAmounts = 2:5;
-intensityNorm = 255;
+%% process BUCKNER atlas 
+dsAmt = 2:7;
+intNorm = 255;
+padAmts = [-1, 0, 10, 30];
+names = {'wholevol', 'brain', 'brain_pad10', 'brain_pad30'};
 
-%% process atlas
-normalizeNii(BUCKNER_ATLAS_BRAIN, BUCKNER_ATLAS_MODS.BUCKNER_ATLAS_BRAIN_PROC, intensityNorm);
-[croppedVol, cropMask, cropArray, bBox] = boundingBoxNii(BUCKNER_ATLAS_MODS.BUCKNER_ATLAS_BRAIN_PROC, BUCKNER_ATLAS_MODS.BUCKNER_ATLAS_BRAIN_PROC);
+for pi = 1:numel(padAmts)
+    p = padAmts(pi);
+    fprintf('Running Buckner pad %d\n', p);
+    name = names{pi};
+    
+    [BUCKNER_ATLAS_ORIG, bproc] = preprocAtlas('buckner', GENERAL_DATA_PATH, ...
+        SYNTHESIS_DATA_PATH, dsAmt, intNorm, name, p);
+    eval(sprintf('BUCKNER_ATLAS_PROC_%s = bproc;', upper(name)));
+end
 
-% crop segmentation file
-segnii = loadNii(BUCKNER_ATLAS_SEG);
-segcrop = segnii.img(cropArray{:});
-niinew = make_nii(segcrop);
-niinew.hdr.dime.pixdim(2:4) = segnii.hdr.dime.pixdim(2:4);
-saveNii(niinew, BUCKNER_ATLAS_MODS.BUCKNER_ATLAS_SEG_PROC);
 
-%% resample (all) atlases to match downsample + upsample process 
-atlnii = loadNii(BUCKNER_ATLAS_MODS.BUCKNER_ATLAS_BRAIN_PROC);
-atlvol = atlnii.img;
+%% process STROKE atlas without pad
+dsAmt = 7;
+intNorm = 550;
 
-for s = dsAmounts % downsample amount        
-    for u = 2:s % upsample amount
-        
-        % downsample atlas nii
-        sz = round(size(atlvol) ./ s * u);
-        cmd = 'vol = volresize(atlvol, sz);';
-        disp(cmd);
-        eval(cmd);
-        sunii = make_nii(vol);
-        sunii.hdr.dime.pixdim(2:4) = atlnii.hdr.dime.pixdim(2:4) ./ u * s;
-        
-        % save
-        varname = sprintf('BUCKNER_ATLAS_MODS.BUCKNER_ATLAS_BRAIN_PROC_DS%d_US%d', s, u);
-        cmd = sprintf('saveNii(sunii, %s)', varname);
-        disp(cmd);
-        eval(cmd);
-    end
+for pi = 1:numel(padAmts)
+    p = padAmts(pi);
+    fprintf('Running Stroke pad %d\n', p);
+    name = names{pi};
+    
+    [STROKE_ATLAS_ORIG, bproc] = preprocAtlas('stroke', GENERAL_DATA_PATH, ...
+        SYNTHESIS_DATA_PATH, dsAmt, intNorm, name, p);
+    eval(sprintf('STROKE_ATLAS_PROC_%s = bproc;', upper(name)));
 end
