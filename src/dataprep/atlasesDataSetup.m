@@ -1,24 +1,16 @@
-%% atlasDataSetup
-% basic setup of atlas paths
-% Requires: GENERAL_DATA_PATH, SYNTHESIS_DATA_PATH
-dsAmounts = 2:7;
+%% setup atlases
+padAmts = [-1, 0, 10, 30];
+names = {'wholevol', 'brain', 'brain_pad10', 'brain_pad30'};
 
-% buckner paths - general
-BUCKNER_PATH = fullfile(GENERAL_DATA_PATH, 'buckner');
-BUCKNER_ATLAS = fullfile(BUCKNER_PATH, 'atlases', 'buckner61.nii.gz');
-BUCKNER_ATLAS_SEG = fullfile(BUCKNER_PATH, 'atlases', 'buckner61_seg.nii.gz');
-BUCKNER_ATLAS_BRAIN = fullfile(BUCKNER_PATH, 'atlases', 'buckner61_brain.nii.gz');
+for pi = 1:numel(padAmts)
+    p = padAmts(pi);
+    name = names{pi};
+    
+    [BUCKNER_ATLAS_ORIG, bproc] = preprocAtlasPaths('buckner', name, GENERAL_DATA_PATH, ...
+        SYNTHESIS_DATA_PATH, 2:7);
+    eval(sprintf('BUCKNER_ATLAS_PROC_%s = bproc;', upper(name)));
 
-% buckner paths - processed
-BUCKNER_ATLAS_MODS.BUCKNER_ATLAS_BRAIN_PROC = fullfile(SYNTHESIS_DATA_PATH, 'buckner/atlases', 'buckner61_brain_proc.nii.gz');
-BUCKNER_ATLAS_MODS.BUCKNER_ATLAS_SEG_PROC = fullfile(SYNTHESIS_DATA_PATH, 'buckner/atlases', 'buckner61_seg_proc.nii.gz');
-
-%% DS-US paths
-for s = dsAmounts % downsample amount        
-    for u = 1:s % upsample amount
-        varname = sprintf('BUCKNER_ATLAS_MODS.BUCKNER_ATLAS_BRAIN_PROC_DS%d_US%d', s, u);
-        fname = sprintf('buckner61_brain_proc_ds%d_us%d.nii.gz', s, u);
-        fullfname = fullfile(SYNTHESIS_DATA_PATH, 'buckner/atlases', fname);
-        eval([varname, ' = fullfname;']);
-    end
+    [STROKE_ATLAS_ORIG, bproc] = preprocAtlasPaths('stroke', name, GENERAL_DATA_PATH, ...
+        SYNTHESIS_DATA_PATH, 7);
+    eval(sprintf('STROKE_ATLAS_PROC_%s = bproc;', upper(name)));
 end
