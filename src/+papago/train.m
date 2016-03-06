@@ -37,6 +37,8 @@ function train(infile, volnames, outfile, patchSize, K, nSamples, model, varargi
 
 % Main idea: We have some default parameters
 
+    rng(1);
+
     % parameter handling
     [params, opt, wopt] = ...
         parseInputs(infile, volnames, outfile, patchSize, K, nSamples, model, varargin{:});
