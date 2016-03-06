@@ -39,10 +39,12 @@ function processSubjectStroke(md, subjid, intensityNorm, atlMods, preregmod)
         DsUsNNMark = sprintf('Ds%dUs%dNNMask', dsRate, usRate);
 
         % prepare functions to upsample
+        dsfn = @(x, y) downsampleNii(x, [dsRate/usRate, dsRate/usRate, 1], y, false, 'nn');
         usfnlin = @(x, y, m) upsampleNii(x, y, m, 'linear', 0, [1, 1, usRate], true);
         usfnnn = @(x, y, m) upsampleNii(x, y, m, 'nearest', 0, [1, 1, usRate], true);
 
         % first, downsample to isotropic low-quality size
+        md.applyfun(dsfn, {Ds, DsIso}, 'include', subjid); % meant to be upsampled to an isotropic-resolution (but bad quality) after ds.
         md.applyfun(usfnlin, {DsIso, DsUs, DsUsMark}, 'include', subjid);
         md.applyfun(usfnnn, {DsIso, DsUsNN, DsUsNNMark}, 'include', subjid);
     end

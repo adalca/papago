@@ -11,7 +11,6 @@ function processSubject(md, subjid, dsRate, intensityNorm, atlMods, regType, pad
 	if ischar(dsRate), dsRate = str2double(dsRate); end
     if ischar(padAmount), padAmount = str2double(padAmount); end
     
-	
     % us rates
     usRates = 1:dsRate;
     
@@ -156,8 +155,7 @@ function processSubject(md, subjid, dsRate, intensityNorm, atlMods, regType, pad
         if doseg
             DsUsRegSeg = sprintf('Ds%dUs%dRegSeg', dsRate, dsRate); % use the original Ds5Us5!
             md.register(CroppedSeg, atlfile, 'rigid', 'multimodal', ...
-                'saveModality', DsUsRegSeg, 'loadtformModality', preregmod, 'registeredVolumeInterp', 'nearest', 'include', subjid);
-        end
+                'saveModality', DsUsRegSeg, 'loadtformModality', preregmod, 'registeredVolumeInterp', 'nearest', 'include', subjid);        end
     end
     
     %% special case: warp of Iso-DsXUs2-Ds2Us2
