@@ -3,9 +3,9 @@
 setup
 
 %% parameters
-atlPatchSize = ones(1, 3) * 5; 
-atlLoc = LOC_VENTRICLE_EDGE; %LOC_VENTRICLE_EDGE; % LOC_LEFT_CORTEX+10; %LOC_VENTRICLE_EDGE; %LOC_LEFT_CORTEX;
-reconSubj = 3; %1, 3
+atlPatchSize = ones(1, 3) * 9; 
+atlLoc = [52 43 34]; % LOC_VENTRICLE_EDGE; %LOC_VENTRICLE_EDGE; % LOC_LEFT_CORTEX+10; %LOC_VENTRICLE_EDGE; %LOC_LEFT_CORTEX;
+reconSubj = 1; %1, 3
 patchColPad = ones(1, 3) * 2;
 
 % train and test datasets
@@ -19,6 +19,8 @@ subvolSize = atlPatchSize + (2 * patchColPad + 1);
 % modalities
 ds = 5;
 us = 5; warning('only works for us5 right now'); 
+
+
 isoSubjInAtlMod = sprintf('brainIso2Ds%dUs%dsizeReg', ds, us);
 dsSubjInAtlMod = sprintf('brainDs%dUs%dReg', ds, us);
 dsSubjInAtlMaskMod = sprintf('brainDs%dUs%dRegMask', ds, us);
@@ -28,6 +30,16 @@ dsInterpSubjInAtlMod = sprintf('brainDs%dUs%dInterpReg', ds, us);
 dsSubjMod = sprintf('brainDs%dUs%d', ds, us);
 dsSubjMaskMod = sprintf('brainDs%dUs%dMask', ds, us);
 isoSubjMod = sprintf('brainIso2Ds%dUs%dsize', ds, us);
+
+% isoSubjInAtlMod = sprintf('Iso2Ds%dUs%dsizeReg', ds, us);
+% dsSubjInAtlMod = sprintf('Ds%dUs%dReg', ds, us);
+% dsSubjInAtlMaskMod = sprintf('Ds%dUs%dRegMask', ds, us);
+% dsSubjInAtlMatMod = sprintf('Ds%dUs%dRegMat', ds, ds); % note: meant to be ds, ds !
+% dsInterpSubjInAtlMod = sprintf('Ds%dUs%dInterpReg', ds, us);
+% 
+% dsSubjMod = sprintf('Ds%dUs%d', ds, us);
+% dsSubjMaskMod = sprintf('Ds%dUs%dMask', ds, us);
+% isoSubjMod = sprintf('Iso2Ds%dUs%dsize', ds, us);
 
 
 %% load buckner volumes and prepare volume data
@@ -42,6 +54,11 @@ trainmd = loadmd(fnames);
     subspacetools.md2patchcol(trainmd, dsSubjInAtlMod, atlPatchSize, atlLoc, patchColPad);
 [bucknerDsMaskPatchCol, ~, ~] = ...
     subspacetools.md2patchcol(trainmd, dsSubjInAtlMaskMod, atlPatchSize, atlLoc, patchColPad);
+
+
+bucknerIsoPatchCol(volidx==reconSubj,:) = []; 
+bucknerDsPatchCol(volidx==reconSubj,:) = []; 
+bucknerDsMaskPatchCol(volidx==reconSubj,:) = []; 
 
 % load selected ADNI subject volumes
 fnames = fullfile(SYNTHESIS_DATA_PATH, testdataset, 'md', [sys.usrname, '_restor_md_*']);
@@ -64,6 +81,8 @@ atlLoc2SubjSpace = tform2cor3d(tform, size(dsSubjVol), subjDims, atlVolSize, atl
 
 %%
 
+disp('knn quilt'); 
+
 % crop the subvolumes from the iso, ds and mask volumes
 isoSubjInAtlPatch = cropVolume(double(isoSubjInAtlNii.img), subvolLoc, subvolLoc + subvolSize - 1);
 dsSubjInAtlPatch = cropVolume(double(dsSubjInAtlNii.img), subvolLoc, subvolLoc + subvolSize - 1);
@@ -74,10 +93,10 @@ dsSubjInAtlMaskPatch = cropVolume(double(dsSubjInAtlMaskVol), subvolLoc, subvolL
 libPatches = patchlib.vol2lib(dsSubjInAtlPatch, atlPatchSize); 
 libMasks = patchlib.vol2lib(dsSubjInAtlMaskPatch, atlPatchSize);
 
-warning('todo: add in weight for knnsearch'); 
 
 % find the matching patches 
-[pIdx, dist] = knnsearch(bucknerIsoPatchCol, libPatches); 
+dstfun = @(x, y) wtdst(x, y, atlPatchSize);
+[pIdx, dist] = knnsearch([bucknerIsoPatchCol ones(size(bucknerIsoPatchCol))], [libPatches libMasks], 'Distance', dstfun); 
 retrievedPatches = bucknerIsoPatchCol(pIdx, :); 
 
 % quilt the patches
@@ -85,5 +104,36 @@ reconVol = patchlib.quilt(retrievedPatches, size(dsSubjInAtlPatch) - atlPatchSiz
 
 % view the results
 % linearlly interpolated subvolume, ground truth iso subvolume, reconstruced Volume
-view3Dopt(dsSubjInAtlPatch, isoSubjInAtlPatch, reconVol)
+view3Dopt(dsSubjInAtlPatch, dsSubjInAtlMaskPatch, isoSubjInAtlPatch, reconVol)
+
+
+%% compute isotropic gaussian mixture model
+
+disp('gmm quilt'); 
+
+% learn a gaussian mixture model with K clusters from the *true* isotropic data, 
+gmmopt = statset('Display', 'iter', 'MaxIter', 20, 'TolFun', 0.001);
+gmmK = 15; 
+crmethod = 'inverse'; % 'forward', 'inverse'
+regVal = 1e-4; % regulaization to the diagonal of subjSigma, if using method forward
+keepr = 1; 
+
+% compute the gaussian mixture model. TODO: should use wgmmfit with model0
+tic
+X = bsxfun(@minus, bucknerIsoPatchCol, mean(bucknerIsoPatchCol, 2));
+gmmIso = fitgmdist(X, gmmK, 'regularizationValue', regVal, 'replicates', 3, 'Options', gmmopt);
+fprintf('gmm took %3.3f sec\n', toc);
+gmmIso = wgmm.gmdist2wgmm(gmmIso);
+
+
+extraReconArg = ifelse(strcmp(crmethod, 'inverse'), subjLoc2AtlSpace, regVal);
+dsSubjNii = testmd.loadModality(dsSubjMod, reconSubj);
+dsSubjVol = double(dsSubjNii.img);
+dsSubjWeightVol = logical(testmd.loadVolume(dsSubjMaskMod, reconSubj));
+
+[quiltedSubvolIso, reconLoc, cntvol] = papago.subvolRecon(gmmIso, subvolLoc, subvolSize, atlPatchSize, crmethod, keepr, ...
+    dsSubjInAtlNii.img, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArg);
+
+
+
 
