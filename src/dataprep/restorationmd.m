@@ -6,6 +6,8 @@ function md = restorationmd(dsAmounts, buildpath, savepath, name)
 %   md = restorationmd(dsAmounts, buildpath, savepath, name) also save the md
 %   object.
 %
+%   md = restorationmd(2:7, [SYNTHESIS_DATA_PATH, '/buckner/proc/wholevol'], [SYNTHESIS_DATA_PATH, '/buckner'], 'wholevol');
+%
 %   dsAmounts - a vector of the downsampling amounts. e.g. 2:5
 %   buildpath e.g.: ADNI_PATH_PROC
 %   savepath e.g.: SYNTHESIS_DATA_PATH
@@ -22,7 +24,7 @@ function md = restorationmd(dsAmounts, buildpath, savepath, name)
     md.addRequiredModality('orig', '%s.nii.gz');
     md.addModality('proc', '%s_proc.nii.gz');
     
-    md.addModality('seg', '%s_roig_seg.nii.gz');
+    md.addModality('seg', '%s_seg.nii.gz');
     md.addModality('procSeg', '%s_proc_seg.nii.gz');
     
     % modalities matfile
@@ -179,9 +181,9 @@ function md = restorationmd(dsAmounts, buildpath, savepath, name)
             name = '';
         end
         date = datestr(now, 'yyyy_mm_dd');
-        fld = [savepath, filesep, name, filesep, 'md', filesep];
+        fld = [savepath, filesep, 'md', filesep];
         mkdir(fld);
-        save([fld, sys.usrname, '_restor_md_', date], 'md');
+        save([fld, sys.usrname, '_', name, '_restor_md_', date], 'md');
     end
     
     
