@@ -6,10 +6,9 @@ function processFlairUs(flairfile, intensityNorm, flairfileout, flairfilemask)
     flairnii = loadNii(flairfile);
     dsRate = round(flairnii.hdr.dime.pixdim(4) ./ flairnii.hdr.dime.pixdim(2));
     assert(dsRate == (round(flairnii.hdr.dime.pixdim(4) ./ flairnii.hdr.dime.pixdim(3))));
-    
+    if ischar(intensityNorm), intensityNorm = str2double(intensityNorm); end
     
     %% normalize intensity transform images to be between 0 to 1, and crop to a bounding box 
-    whos
     flairnii.img = double(flairnii.img) ./ intensityNorm;
     [flairusvol, flairusmask] = upsampleNii(flairnii, [], [], 'linear', 0, [1, 1, dsRate], true);
     
