@@ -9,6 +9,7 @@ function processFlairUs(flairfile, intensityNorm, flairfileout, flairfilemask)
     
     
     %% normalize intensity transform images to be between 0 to 1, and crop to a bounding box 
+    whos
     flairnii.img = double(flairnii.img) ./ intensityNorm;
     [flairusvol, flairusmask] = upsampleNii(flairnii, [], [], 'linear', 0, [1, 1, dsRate], true);
     
