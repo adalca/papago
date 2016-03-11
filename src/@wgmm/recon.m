@@ -6,6 +6,8 @@ function varargout = recon(wgmm, X, W, method, varargin)
 %   weig (prtile)
 %   pca (prtile)
 
+    error('it seems like we should use svd instead of weig. Unclear, this might've worked from ebginning?');
+
     inputs = parseInputs(varargin{:});
     varargout = cell(1, nargout);
     

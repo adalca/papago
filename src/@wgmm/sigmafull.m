@@ -1,10 +1,10 @@
 function [sigma, sigmainv, sigmacore, sigmarecon, sigmamerge] = ...
-    sigmafull(mu, X, W, K, gammank, methods, opts)
+    sigmafull(mu, X, W, K, gammank, methods, opts, wg)
 % compute the full sigma, including the sigma core (sigmac), reconstruction (sigmar), ...
 % regularization and PD-fix
 
     % compute the core
-    sigmacore = wgmm.sigmacore(mu, X, W, K, gammank, methods.core, opts);
+    sigmacore = wgmm.sigmacore(mu, X, W, K, gammank, methods.core, opts, wg);
     sumgammank = sum(gammank);
     
     wtw = W' * W;

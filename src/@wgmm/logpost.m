@@ -149,11 +149,10 @@ function [logpin, varargout] = logpost(gmm, X, W)
             end
             assert(isclean(logpin), 'log(pi*n) is unclean');
             
-        case 'model4'
+        case {'model4', 'model5'}
             % compute gammank. This will be low since we have to invert for 8each * subject. 
             % perhaps we could approximate it?
-            maxd = 0.0001;
-            
+            % also compute mu^r_nk
             logpin = zeros(N, K);
             murnk = zeros(N, K, D);
             for k = 1:K
@@ -162,17 +161,14 @@ function [logpin, varargout] = logpost(gmm, X, W)
                 
                 for i = 1:N
                     w = W(i, :);
-                    % Di = diag((-log(w)).^ 2);
-                    Di = gmm.model4fn(w);
-                    
-                    % this method fails, try an adjaceny matrix, so that you collerate Di.
-                    
-                    sigma = sigmak + Di;
                     x = X(i, :);
+                    
+                    % sigmas
+                    Di = gmm.model4fn(w);
+                    sigma = sigmak + Di;
                     
                     % consider pre-computing sigma inverse. But that's slow an dimprecise. 
                     % sigmainv = inv(sigma);
-                    
                     logpin(i, k) = log(gmm.pi(k)) + wgmm.logmvnpdf(x, muk, sigma);                    
                     murnk(i, k, :) = reshape((sigmak / sigma) * (x - muk)' + muk', [1, 1, D]);
                 end

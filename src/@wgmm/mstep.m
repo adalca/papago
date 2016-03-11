@@ -89,6 +89,25 @@ function mu = muupdate(wgmm, X, W, K, gammank, method)
                 mu(k, :) = numer ./ denom;
             end
             
+        case 'model5'
+            for k = 1:K
+                numer = 0;
+                denom = 0;
+                sigmak = wgmm.sigma(:,:,k);
+                for i = 1:size(X, 1)
+                    w = W(i, :);
+                    x = X(i, :);
+                    
+                    % sigmas
+                    Di = wgmm.model4fn(w);
+                    sigma = sigmak + Di;
+                    
+                    numer = numer + gammank(i, k) * ((sigma + Di) \ x(:));
+                    denom = denom + gammank(i, k) * inv(sigma + Di);
+                end
+                mu(k, :) = denom \ numer; 
+            end
+            
         otherwise
             error('unknown mu update method');
     end
@@ -107,5 +126,5 @@ function [sigma, sigmainv] = sigmaupdate(wg, X, W, K, gammank)
         opts.mergeargs = {opts.mergeargs};
     end
     
-    [sigma, sigmainv] = wg.sigmafull(wg.mu, X, W, K, gammank, methods, opts);
+    [sigma, sigmainv] = wg.sigmafull(wg.mu, X, W, K, gammank, methods, opts, wg);
 end

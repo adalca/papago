@@ -1,4 +1,4 @@
-function wg = init(wg, X, W, K, arargin)
+function wg = init(wg, X, W, K, varargin)
 % initializing a wgmm fit optimization. 
 
     assert(size(X, 1) >= K);
@@ -21,7 +21,7 @@ function wg = init(wg, X, W, K, arargin)
             gm = varargin{1};
             wg.mu = gm.mu;
             wg.sigma = gm.Sigma;
-            wg.pi = gm.ComponentProportions;
+            wg.pi = gm.ComponentProportion;
         
         % assign a cluster number to each point randomly
         case 'randset' 
@@ -93,6 +93,16 @@ function wg = init(wg, X, W, K, arargin)
                 wg.sigmainv(:,:,k) = inv(wg.sigma(:,:,k));
             end
             
+        case 'model4exp05'
+            assert(K == 1)
+            wg.mu = nanmean(X);
+            for i = 1:size(X, 1)
+                X(i, W(i, :) < 0.5) = wg.mu(W(i,:) < 0.5);
+            end
+            wg.sigma = cov(X);
+            wg.pi = 1;
+            
+            
         otherwise
             error('wgmm.init: unknown init method');
     end
@@ -101,7 +111,7 @@ function wg = init(wg, X, W, K, arargin)
     assert(isclean(wg.mu));
     assert(isclean(wg.sigma));
     assert(isclean(wg.pi));
-    assert(all(size(wg.mu) == [k, D]), 'The size of init mu is incorrect');
-    assert(all(size(permute(wg.sigma, [3 1 2])) == [k, D, D]), 'The size of init sigma is incorrect');
-    assert(numel(wg.pi) == k, 'The size of init pi is incorrect');
+    assert(all(size(wg.mu) == [K, D]), 'The size of init mu is incorrect');
+    assert(all(size(permute(wg.sigma, [3 1 2])) == [K, D, D]), 'The size of init sigma is incorrect');
+    assert(numel(wg.pi) == K, 'The size of init pi is incorrect');
 end

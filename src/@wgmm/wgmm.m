@@ -39,7 +39,7 @@ classdef wgmm < handle
         
         % Update parameters. 
         % Most of these available methods should get cleaned up after development.
-        covarUpdateMethod = 'model0';
+        covarUpdateMethod = 'model4exp';
         muUpdateMethod = 'model0';
         logpUpdateMethod = 'model4';
         model4fn = @(w) diag((-log(w)).^ 2);
@@ -101,9 +101,9 @@ classdef wgmm < handle
         logp = logmvnpdf(x, mu, sigma, sigmainv);
         
         % helper functions for computing and correcting sigma.
-        [sigma, sigmainv, sigmacore, sigmarecon, sigmamerge] = sigmafull(mu, X, W, K, gammank, mthods, opts);
+        [sigma, sigmainv, sigmacore, sigmarecon, sigmamerge] = sigmafull(mu, X, W, K, gammank, mthods, opts, wg);
         sigmar = sigmarecon(sigma, wtw, method);
-        sigma = sigmacore(mu, X, W, K, gammank, coremethod, coreargs);
+        sigma = sigmacore(mu, X, W, K, gammank, coremethod, coreargs, wg);
         sigma = sigmamerge(sigmac, sigmar, wtw, method, varargin);
         
         % general helpful functions
@@ -113,6 +113,7 @@ classdef wgmm < handle
         compareMeans(gmms, patchSize, titles);
         compare(gmms, patchSize, gmmMethods, varargin);
         compareSigmas(gmms, titles); 
+        sm = model5exp(s, X, W, muk, dfn) 
         
     end
     

@@ -1,4 +1,4 @@
-function sigma = sigmacore(mu, X, W, K, gammank, coremethod, coreargs)
+function sigma = sigmacore(mu, X, W, K, gammank, coremethod, coreargs, wg)
 
     Nk = sum(gammank, 1);
     nDims = size(X, 2);
@@ -99,7 +99,114 @@ function sigma = sigmacore(mu, X, W, K, gammank, coremethod, coreargs)
                 end
                 sigma(:, :, k) = numer ./ denom;
             end
+        
+        case 'model4exp'
             
+            for k = 1:K
+                xc = bsxfun(@minus, X, mu(k, :))';
+                
+                numer = 0;
+                denom = 0;
+                for i = 1:size(X, 1)
+                    w = sqrt(W(i, :)');
+                    Di = wg.model4fn(w);
+                    s = wg.sigma(:,:,k);
+                    sg = s + Di;
+                    xtx = xc(:, i) * xc(:, i)';
+                    
+                    numer = numer + gammank(i, k) * (xtx + (s / sg) * Di);
+                    
+                    denom = denom + gammank(i, k);
+                end
+                sigma(:, :, k) = numer ./ denom;
+                imagesc(sigma(:, :, k)); 
+                drawnow;
+                pause(0.01);
+            end
+            
+            
+        case 'model5'
+%             for k = 1:K
+%                 muk = wg.mu(k, :);
+%                 sigma(:,:,k) = fminsearch(@(s) wg.model5exp(s, X, W, muk, wg.model4fn), wg.sigma(:,:,k));
+%             end
+            
+%             for k = 1:K
+%                 numer = 0;
+%                 denom = 0;
+%                 sigmak = wg.sigma(:,:,k);
+%                 for i = 1:size(X, 1)
+%                     w = W(i, :);
+%                     x = X(i, :);
+%                     df = (x + wg.mu(k,:));
+%                     dfd = df(:) * (df(:))';
+%                     
+%                     % sigmas
+%                     Di = wg.model4fn(w);
+%                     sg = sigmak + Di;
+%                     
+%                     numer = numer + gammank(i, k) * dfd / (sg + Di) / Di / (inv(sigmak) + inv(Di));
+%                     denom = denom + gammank(i, k) * inv(sg + Di);
+%                 end
+%                 sigma(:, :, k) = denom \ numer; 
+%             end    
+            
+%             for k = 1:K
+%                 numer = 0;
+%                 denom = 0;
+%                 sigmak = wg.sigma(:,:,k);
+%                 for i = 1:size(X, 1)
+%                     w = W(i, :);
+%                     x = X(i, :);
+%                     df = (x - wg.mu(k,:));
+%                     dfd = df(:) * (df(:))';
+%                     
+%                     % sigmas
+%                     Di = wg.model4fn(w);
+%                     sg = sigmak + Di;
+%                     
+%                     numer = numer + gammank(i, k) * (- eye(numel(x)) + (dfd / (sg + Di))) / (sg + Di);
+%                 end
+%                 sigma(:, :, k) = sigmak - 0.00001 * numer ./ sum(gammank(:, k)); 
+%             end    
+
+        fprintf(2, 'current using init with sigma of y (noisy data). Maybe use previous sigma?');
+        
+
+        for k = 1:K
+            muk = wg.mu(k, :);
+            xc = bsxfun(@minus, X, muk);
+            
+            % compute sigma for this cluster ffrom noisy data xc.
+            gw = sqrt(gammank(:, k));
+            wx = bsxfun(@times, gw, xc);
+            aa = wx' * wx; % gamma * (x-u) (x-u)'
+            sigmainitk = aa ./ sum(gammank(:, k));
+            
+            % hack 1
+            numer = 0; denom = 0; 
+            meanD = 0;
+            for i = 1:size(X, 1)
+                w = W(i, :); 
+                x = X(i, :);
+                df = (x - muk);
+                dfd = df(:) * (df(:))';
+
+                Di = wg.model4fn(w);
+                sg = sigmainitk + Di;
+
+                numer = numer + (sg \ dfd);
+                %denom = denom + inv(sg);
+                denom = denom + inv(sg) + inv(sg) * dfd * inv(sigmainitk) * Di * inv(sigmainitk);
+
+                meanD = meanD + Di;
+            end
+            meanD = meanD ./ size(X, 1);
+            sigma(:,:,k) = (denom \ numer) - meanD ./ 8; % empirical ./4
+            % sigma(:,:,k) = (denom \ numer); 
+            
+        end
+
         otherwise
             error('unknown covarianceupdate');
     end
