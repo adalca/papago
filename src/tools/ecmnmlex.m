@@ -207,7 +207,7 @@ for Iteration = 1:MaxIter
    WarnState = warning('off','MATLAB:nearlySingularMatrix');
    Count = 0;
    for i = 1:NumSamples
-
+    
       CovAdj = zeros(NumSeries,NumSeries);
 
       % expectation step
@@ -252,7 +252,7 @@ for Iteration = 1:MaxIter
       Objective = [Objective; ecmnobj(Data,Mean,Covar,CholCovar)];
       ThObjective = Count * (NumSeries * log(2.0 * pi) + LogDetCovar)/2.0;
 
-      fprintf('%f %f\n', Objective(end), (Objective(end) - Objective(end - 1))/ThObjective);
+      fprintf('%f %f %f\n', Objective(end), (Objective(end) - Objective(end - 1))/ThObjective, (Objective(end) - Objective(end - 1)) *2 ./ (Objective(end) + Objective(end - 1)));
       if abs((Objective(end) - Objective(end - 1))/ThObjective) < Tolerance
          break
       end
