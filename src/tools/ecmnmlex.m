@@ -1,4 +1,4 @@
-function [Mean, Covar] = ecmnmle(Data, InitMethod, ...
+function [Mean, Covar, Zout] = ecmnmlex(Data, InitMethod, ...
    MaxIter, Tolerance, Mean0, Covar0)
 %ECMNMLE Estimate mean and covariance of incomplete multivariate normal data.
 %	Use the expectation conditional maximization (ECM) algorithm to estimate
@@ -201,6 +201,7 @@ for Iteration = 1:MaxIter
    % Step 5 - covariance expectation and conditional maximization
 
    Z = zeros(NumSeries,1);
+   Zout = nan(NumSamples, NumSeries);
 
    Covar = zeros(NumSeries,NumSeries);
 
@@ -227,6 +228,7 @@ for Iteration = 1:MaxIter
             
             CovAdj(P,P) = CXX - CXY * inv(CYY) * CXY';
          end
+         Zout(i, :) = Z(:)';
 
          % conditional maximization step
 
