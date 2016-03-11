@@ -24,7 +24,7 @@ function err = patcherror(testpatches, truepatches, fun, preprocessmethod, varar
             
         case 'gauss'
             gblob = gaussianblob(varargin{1}, varargin{2});
-            processfun = @(x) vst(bsxfun(@times, x, gblob(:)'));
+            processfun = @(x) (bsxfun(@times, x, gblob(:)')); % vst(...)
             
         case 'subpatch'
             patchSize = varargin{1};
