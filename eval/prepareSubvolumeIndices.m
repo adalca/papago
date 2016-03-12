@@ -1,11 +1,12 @@
 % prepareSubvolumeIndices
-gridSubFilename = 'D:\Dropbox (MIT)\Research\patchSynthesis\data\buckner\subvols\wholevol/grididx2loc.txt';
-selSubFilename = 'D:\Dropbox (MIT)\Research\patchSynthesis\data\buckner\subvols\wholevol/selidx2loc.txt';
+PATH = 'D:/Dropbox (MIT)/Research/patchSynthesis/data/buckner/subvols/wholevol/';
+gridSubFilename = [PATH, 'grididx2loc.txt'];
+selSubFilename = [PATH, 'selidx2loc.txt'];
+gridSpacing = ones(1,3)*7;
 
 % get
 atlsegnii = loadNii([SYNTHESIS_DATA_PATH, 'buckner/atlases/wholevol/buckner61_seg_proc.nii.gz']);
 atlnii = loadNii([SYNTHESIS_DATA_PATH, 'buckner/atlases/wholevol/buckner61_proc.nii.gz']);
-gridSpacing = ones(1,3)*6;
 [selidx, grididx] = usefulSubvolumes(atlnii, atlsegnii, 5, ones(1,3)*41, 5, ones(1,3)*17, gridSpacing);
 
 %% save idx
@@ -31,14 +32,14 @@ fclose(fid);
 
 %% closest to center
 volLoc = [116, 104, 130];
-nTop = 1000;
+nTop = 7^3;
 
 
 df = sqrt(sum(bsxfun(@minus, volLoc, selsub).^2, 2));
 [~, si] = sort(df, 'ascend');
 
 % split the top nTop and the rest into two files
-[PATH, file, ~] = fileparts(selSubFilename);
+[~, file, ~] = fileparts(selSubFilename);
 
 fid = fopen(sprintf('%s/%s_top%d.txt', PATH, file, nTop), 'w');
 for i = 1:nTop
