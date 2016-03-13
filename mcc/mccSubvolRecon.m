@@ -9,7 +9,10 @@ function mccSubvolRecon(gmmFile, subvolFile, iniReconFile, ...
 % currently, require correlation subject file, although tform could also be an opt
 
     % load 'gmm'
-    load(gmmFile);
+    q = load(gmmFile);
+    if isfield(q, 'gmm'), gmm = q.gmm; assert(~isfield(q, 'wg'))
+    elseif isfield(q, 'gmm'), gmm = q.wg;
+    end
     
     % load subvolume 'nfo' 
     load(subvolFile, 'nfo'); 
@@ -21,6 +24,10 @@ function mccSubvolRecon(gmmFile, subvolFile, iniReconFile, ...
     crmethod = ini.dirn; % 'inverse';
     nPatchReconPerLoc = ini.mrf.nPatchReconPerLoc; % 1;
     atlPatchSize = ini.atlPatchSize;
+    
+    for i = 1:size(gmm.mu, 1)
+        gmm.sigma(:,:,i) = gmm.sigma(:,:,i) + eye(size(gmm.mu,2)) * ini.regval;
+    end
 
     % load volumes
     dsSubjInAtlVol = nii2vol(loadNii(dsSubjInAtlFile));

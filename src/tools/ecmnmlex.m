@@ -1,5 +1,5 @@
 function [Mean, Covar, Zout] = ecmnmlex(Data, InitMethod, ...
-   MaxIter, Tolerance, Mean0, Covar0)
+   MaxIter, Tolerance, Mean0, Covar0, verbose)
 %ECMNMLE Estimate mean and covariance of incomplete multivariate normal data.
 %	Use the expectation conditional maximization (ECM) algorithm to estimate
 %	NUMSERIES x 1 mean column vector Mean and NUMSERIES x NUMSERIES covariance
@@ -110,6 +110,10 @@ else
 end
 if nargin < 1 || isempty(Data)
    error(message('finance:ecmnmle:MissingInputArg'));
+end
+
+if ~exist('verbose', 'var')
+    verbose = true;
 end
 
 % Step 2 - initialization
@@ -226,20 +230,25 @@ for Iteration = 1:MaxIter
             Z(P) = mX + CXY * (CYY \ (Y - mY));
             Z(Q) = Y;
             
-            CovAdj(P,P) = CXX - CXY * inv(CYY) * CXY';
+            CovAdj(P,P) = CXX - CXY * (CYY \ CXY' );
+
          end
          Zout(i, :) = Z(:)';
 
          % conditional maximization step
 
          Count = Count + 1;
-         Covar = Covar + (Z - Mean) * (Z - Mean)' + CovAdj;
+         meanAdjZ = Z-Mean; 
+         Covar = Covar + meanAdjZ*meanAdjZ' + CovAdj;
       end
    end
    warning(WarnState);
 
    Covar = (1.0/Count) .* Covar;
-
+   
+   % add the mean back into the expected patches
+   Zout = bsxfun(@plus, Zout, Mean'); 
+   
    % Step 6 - evaluate objective and test for convergence
 
    if (Tolerance > 0) || ((Tolerance <= 0) && (nargout < 1))
@@ -254,7 +263,9 @@ for Iteration = 1:MaxIter
       Objective = [Objective; ecmnobj(Data,Mean,Covar,CholCovar)];
       ThObjective = Count * (NumSeries * log(2.0 * pi) + LogDetCovar)/2.0;
 
-      fprintf('%f %f %f\n', Objective(end), (Objective(end) - Objective(end - 1))/ThObjective, (Objective(end) - Objective(end - 1)) *2 ./ (Objective(end) + Objective(end - 1)));
+      if verbose
+        fprintf('%f %f %f\n', Objective(end), (Objective(end) - Objective(end - 1))/ThObjective, (Objective(end) - Objective(end - 1)) *2 ./ (Objective(end) + Objective(end - 1)));
+      end
       if abs((Objective(end) - Objective(end - 1))/ThObjective) < Tolerance
          break
       end
@@ -313,3 +324,4 @@ mY = m(Q);
 CXX = C(P,P);
 CXY = C(P,Q);
 CYY = C(Q,Q);
+

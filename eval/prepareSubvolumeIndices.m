@@ -53,3 +53,7 @@ for i = (nTop+1):numel(selidx(:))
 end
 fclose(fid);
 
+%%
+dots = zeros(size(atlnii.img));
+dots(selidx(si(1:nTop))) = 1;
+view3Dopt(atlnii.img + dots);

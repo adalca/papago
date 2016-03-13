@@ -34,7 +34,7 @@ function [selidx, grididx] = usefulSubvolumes(atlnii, atlsegnii, blurSigma, blur
     nDotsInSeg = numel(selidx);
     
     % visualization 
-%     view3Dopt(dilatedSeg1 + atl, double(atl > 0.1), dilatedSeg + atl + dots);
+    % view3Dopt(dilatedSeg1 + atl, double(atl > 0.1), dilatedSeg + atl + dots);
     view3Dopt(dilatedSeg + atl + dots);
     fprintf('Number of dots in seg: %d\n', nDotsInSeg);
 end
@@ -43,23 +43,23 @@ end
 % old code
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
 
-    % % dilation instead of bluring. This is slow.
-    % elementSize = ones(1, 3) * (serad+2-1);
-    % n = size2ndgridvec(elementSize);
-    % n = n - serad - 1;
-    % elem = reshape(sqrt(sum(n.^2, 2)), elementSize);
-    % se=strel(elem); %ones(50,50,50)); 
-    % dilatedSeg = imdilate(seg>0,se); 
-    % 
-    % % visualize grid with arrows. Unforutnately, arrows need to be >=1 or so to see them, which gets
-    % % confusing. The original idea was to have arrows of size 0, which woul hopfully show up as
-    % % just circles.
-    % sub = patchlib.grid(size(seg), patchSize, patchOverlap, 'sub');
-    % 
-    % f.u = sub{1}(:);
-    % f.v = sub{2}(:);
-    % f.w = sub{3}(:);
-    % 
-    % f.x = sub{1}(:)*1;
-    % f.y = sub{2}(:)*1;
-    % f.z = sub{3}(:)*1;
+% % dilation instead of bluring. This is slow.
+% elementSize = ones(1, 3) * (serad+2-1);
+% n = size2ndgridvec(elementSize);
+% n = n - serad - 1;
+% elem = reshape(sqrt(sum(n.^2, 2)), elementSize);
+% se=strel(elem); %ones(50,50,50)); 
+% dilatedSeg = imdilate(seg>0,se); 
+% 
+% % visualize grid with arrows. Unforutnately, arrows need to be >=1 or so to see them, which gets
+% % confusing. The original idea was to have arrows of size 0, which woul hopfully show up as
+% % just circles.
+% sub = patchlib.grid(size(seg), patchSize, patchOverlap, 'sub');
+% 
+% f.u = sub{1}(:);
+% f.v = sub{2}(:);
+% f.w = sub{3}(:);
+% 
+% f.x = sub{1}(:)*1;
+% f.y = sub{2}(:)*1;
+% f.z = sub{3}(:)*1;

@@ -26,19 +26,20 @@ function subvol2ecmwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFil
     q = load(wtSubvolMat); 
     wtSubvols = q.subvolumes;
 
-    %% split subvolumes into super patches (e.g. 13x13x13)
+    %% split subvolumes into patches to 13x13x13
     dsPatches = patchlib.vol2lib(dsSubvols, [superPatchSize 1]); 
     wtPatches = patchlib.vol2lib(wtSubvols, [superPatchSize 1]);
 
+
     if (~exist(clusterIdxMat, 'file') || RECOMPUTECLUSTERS)
-        % train clusters
+        %% train clusters
 
         % downsize the patches using the weights
         warning('only using the sizes of the first dimension'); 
-        [dowsizePatches] = appxDownsizePatches(dsPatches, wtPatches, superPatchSize(1), patchSize(1), ds, smallUs);
+        [downsizePatches] = appxDownsizePatches(dsPatches, wtPatches, superPatchSize(1), patchSize(1), ds, smallUs);
 
         % cluster the downsized patches
-        meanAdjDownsizePatches = bsxfun(@minus, dowsizePatches, mean(dowsizePatches, 2));
+        meanAdjDownsizePatches = bsxfun(@minus, downsizePatches, mean(downsizePatches, 2));
         gmmopt = statset('Display', 'iter', 'MaxIter', 20, 'TolFun', tolerance);
         gmmClust = fitgmdist(meanAdjDownsizePatches, gmmK, 'regularizationValue', 1e-4, 'replicates', 3, 'Options', gmmopt);
         postVal = gmmClust.posterior(meanAdjDownsizePatches);
@@ -52,13 +53,15 @@ function subvol2ecmwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFil
 
 
     %% crop patches to 9x9x9
+
     % reshape to be volumes
     N = size(dsPatches,1); 
-    dsPatchesVols = reshape(dsPatches, [superPatchSize N]);
-    wtPatchesVols = reshape(wtPatches, [superPatchSize N]);
+    dsPatchesVols = reshape(dsPatches', [superPatchSize N]);
+    wtPatchesVols = reshape(wtPatches', [superPatchSize N]);
 
     % crop out the cetner of the volume
     diffPad = (superPatchSize-patchSize)/2;
+    assert(any(isIntegerValue(diffPad)), 'difference between superPatchSize and patchSize should be even'); 
     dsPatchesVolsCrop = cropVolume(dsPatchesVols, [diffPad+1 1], [superPatchSize-diffPad N]); 
     wtPatchesVolsCrop = cropVolume(wtPatchesVols, [diffPad+1 1], [superPatchSize-diffPad N]); 
 
@@ -68,6 +71,7 @@ function subvol2ecmwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFil
 
 
     %% run ecm
+
     means = zeros(gmmK, prod(patchSize)); 
     sigmas = zeros(prod(patchSize), prod(patchSize), gmmK); 
 
@@ -92,11 +96,11 @@ function subvol2ecmwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFil
         samp = randperm(nclustpatches,min(nPatchesThresh,nclustpatches));
         X0nansampled = X0nans(samp,:);
         X0sampled = X0(samp,:); 
+        Wsampled = W(samp,:); 
 
         % if less than hackNum non NaN elements in column then add in some new points
-        [~, idxWvals] = sort(W, 'descend');
-        nanColumns = sum(~isnan(X0nansampled),1) < minNonNan;
-        inds = sub2ind( size(X0nansampled),  idxWvals(1:minNonNan, nanColumns), repmat( find(nanColumns == 1), [minNonNan, 1]) );
+        [~, idxWvals] = sort(Wsampled, 'descend');
+        inds = sub2ind( size(Wsampled), idxWvals(1:minNonNan,:), ndgrid(1:size(Wsampled,2),1:minNonNan)' ); 
         X0nansampled( inds(:) ) = X0sampled( inds(:) );
 
         % run ecm 
@@ -104,9 +108,10 @@ function subvol2ecmwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFil
 
     end
 
-    %% output wgmm
+
     wg = wgmm(means, sigmas, hist(clusterIdx, 1:gmmK)./numel(clusterIdx));
     save(wgmmMat, 'wg', 'clusterIdx', 'postVal', 'params' ); 
 
     warning('remember to add small diagonal component to sigmas in next code'); 
+
 
