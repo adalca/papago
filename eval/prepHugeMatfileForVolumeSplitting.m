@@ -4,8 +4,8 @@ function prepHugeMatfileForVolumeSplitting(mdpath, mod, outmatfile)
 % outmatfile = '/data/vision/polina/projects/stroke/work/patchSynthesis/data/ADNI_T1_baselines/subvols/wholevol/mar12_2016/ADNI_T1_baselines_wholevol_Ds5Us5RegMask_volumes.mat'
 %
 % mdpath = [SYNTHESIS_DATA_PATH, '/stroke/md/adalca_brain_pad10_restor_md_2016_03_05.mat']
-% mod = 'Ds7Us7RegMask'
-% outmatfile = '/data/vision/polina/projects/stroke/work/patchSynthesis/data/stroke/subvols/brain_pad10/mar12_2016/stroke_brain_pad10_Ds7Us7RegMask_volumes.mat'
+% mod = 'Ds7Us7Reg'
+% outmatfile = '/data/vision/polina/projects/stroke/work/patchSynthesis/data/stroke/subvols/brain_pad10/mar12_2016/stroke_brain_pad10_Ds7Us7Reg_volumes.mat'
 
     load(mdpath);
     
@@ -32,9 +32,11 @@ function prepHugeMatfileForVolumeSplitting(mdpath, mod, outmatfile)
             volumes(:,:,:,i) = md.loadVolume(mod, i);
         end
     end
-    volIdx(missing) = []; %#ok<NASGU>
+    volIdx(missing) = []; 
     vi.close();
     toc;
+    
+    volumes = volumes(:,:,:,volIdx); %#ok<NASGU>
         
     % save matfile
     tic;
