@@ -1,5 +1,5 @@
 function [Mean, Covar, Zout] = ecmnmlex(Data, InitMethod, ...
-   MaxIter, Tolerance, Mean0, Covar0, verbose)
+   MaxIter, Tolerance, Mean0, Covar0)
 %ECMNMLE Estimate mean and covariance of incomplete multivariate normal data.
 %	Use the expectation conditional maximization (ECM) algorithm to estimate
 %	NUMSERIES x 1 mean column vector Mean and NUMSERIES x NUMSERIES covariance
@@ -112,10 +112,6 @@ if nargin < 1 || isempty(Data)
    error(message('finance:ecmnmle:MissingInputArg'));
 end
 
-if ~exist('verbose', 'var')
-    verbose = true;
-end
-
 % Step 2 - initialization
 
 [NumSamples, NumSeries] = size(Data);
@@ -142,7 +138,7 @@ if sum(sum(isinf(Data)))
 end
 
 if isempty(Mean0) || isempty(Covar0)
-   [Mean0, Covar0] = ecmninit(Data,InitMethod);
+   [Mean0, Covar0] = ecmninitx(Data,InitMethod);
 else
    Mean0 = Mean0(:);
    if ~all(size(Mean0) == [NumSeries, 1])
@@ -178,7 +174,7 @@ for Iteration = 1:MaxIter
 
       % expectation step
 
-      [mX, mY, CXX, CXY, CYY] = ecmnpart(Data(i,:),Mean0,Covar0);
+      [mX, mY, CXY, CYY] = ecmnpartNoCXX(Data(i,:),Mean0,Covar0);
 
       if ~isempty(mY)
          if isempty(mX)
@@ -208,6 +204,7 @@ for Iteration = 1:MaxIter
    Zout = nan(NumSamples, NumSeries);
 
    Covar = zeros(NumSeries,NumSeries);
+   valid = true(NumSamples,1); 
 
    WarnState = warning('off','MATLAB:nearlySingularMatrix');
    Count = 0;
@@ -238,16 +235,23 @@ for Iteration = 1:MaxIter
          % conditional maximization step
 
          Count = Count + 1;
-         meanAdjZ = Z-Mean; 
-         Covar = Covar + meanAdjZ*meanAdjZ' + CovAdj;
+         %meanAdjZ = Z-Mean; 
+         %Covar = Covar + meanAdjZ*meanAdjZ' + CovAdj;
+         Covar = Covar + CovAdj;
+      else
+          valid(i) = false; 
       end
    end
    warning(WarnState);
 
+   Zoutmean = bsxfun(@minus, Zout(valid,:), Mean'); 
+   Covar = Covar + Zoutmean'*Zoutmean; 
+   Zoutmean = []; 
+   
    Covar = (1.0/Count) .* Covar;
    
    % add the mean back into the expected patches
-   Zout = bsxfun(@plus, Zout, Mean'); 
+   %Zout = bsxfun(@plus, Zout, Mean'); 
    
    % Step 6 - evaluate objective and test for convergence
 
@@ -263,9 +267,7 @@ for Iteration = 1:MaxIter
       Objective = [Objective; ecmnobj(Data,Mean,Covar,CholCovar)];
       ThObjective = Count * (NumSeries * log(2.0 * pi) + LogDetCovar)/2.0;
 
-      if verbose
-        fprintf('%f %f %f\n', Objective(end), (Objective(end) - Objective(end - 1))/ThObjective, (Objective(end) - Objective(end - 1)) *2 ./ (Objective(end) + Objective(end - 1)));
-      end
+      fprintf('%f %f %f\n', Objective(end), (Objective(end) - Objective(end - 1))/ThObjective, (Objective(end) - Objective(end - 1)) *2 ./ (Objective(end) + Objective(end - 1)));
       if abs((Objective(end) - Objective(end - 1))/ThObjective) < Tolerance
          break
       end
@@ -325,3 +327,28 @@ CXX = C(P,P);
 CXY = C(P,Q);
 CYY = C(Q,Q);
 
+
+
+function [mX, mY, CXY, CYY] = ecmnpartNoCXX(z, m, C)
+%ECMNPART Partition moments according to missingness pattern
+%
+% Inputs:
+%	z - observation with possible NaN values in it
+%	m - current mean estimate of data
+%	C - current covariance estimate of data
+%
+% Outputs:
+%	mX - components of m associated with missing values in z
+%	mY - components of m associated with observed values in z
+%	CXX - components of C associated with paired missing values in z
+%	CXY - components of C associated with missing and observed values in z
+%	CYY - components of C associated with paired observed values in z
+
+P = isnan(z);
+Q = ~P;
+
+mX = m(P);
+mY = m(Q);
+
+CXY = C(P,Q);
+CYY = C(Q,Q);
