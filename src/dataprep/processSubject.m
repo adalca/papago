@@ -74,6 +74,8 @@ function processSubject(md, subjid, dsRate, intensityNorm, atlMods, regType, pad
         md.applyfun(dsfn, {Ds, DsIso}, 'include', subjid); % meant to be upsampled to an isotropic-resolution (but bad quality) after ds.
         md.applyfun(usfnlin, {DsIso, DsUs, DsUsMark}, 'include', subjid);
         md.applyfun(usfnnn, {DsIso, DsUsNN, DsUsMark}, 'include', subjid);
+        
+
     end
     
     % crop iso to match DsXUsX
@@ -95,6 +97,11 @@ function processSubject(md, subjid, dsRate, intensityNorm, atlMods, regType, pad
         dsfn = @(x, y) downsampleNii(x, [dsRate/usRate, dsRate/usRate, dsRate/usRate], y, false, 'nn'); 
         IsoDsUssize = sprintf('Iso2Ds%dUs%dsize', dsRate, usRate);
         md.applyfun(dsfn, {Cropped, IsoDsUssize}, 'include', subjid); 
+        
+        if doseg
+            DsUsSeg = sprintf('Ds%dUs%dSeg', dsRate, usRate);
+            md.applyfun(dsfn, {'procSeg', DsUsSeg}, 'include', subjid);        
+        end
     end
 
     % check equality if iso-in-plane from planes of iso-ds'ed-images
@@ -153,9 +160,11 @@ function processSubject(md, subjid, dsRate, intensityNorm, atlMods, regType, pad
         
         % segmentations
         if doseg
-            DsUsRegSeg = sprintf('Ds%dUs%dRegSeg', dsRate, dsRate); % use the original Ds5Us5!
-            md.register(CroppedSeg, atlfile, 'rigid', 'multimodal', ...
-                'saveModality', DsUsRegSeg, 'loadtformModality', preregmod, 'registeredVolumeInterp', 'nearest', 'include', subjid);        end
+            DsUsSeg = sprintf('Ds%dUs%dSeg', dsRate, usRate);
+            DsUsRegSeg = sprintf('Ds%dUs%dRegSeg', dsRate, usRate); % use the original Ds5Us5!
+            md.register(DsUsSeg, atlfile, 'rigid', 'multimodal', ...
+                'saveModality', DsUsRegSeg, 'loadtformModality', preregmod, 'registeredVolumeInterp', 'nearest', 'include', subjid);        
+        end
     end
     
     %% special case: warp of Iso-DsXUs2-Ds2Us2

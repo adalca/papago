@@ -1,4 +1,4 @@
-function [atlVolSize, subjmasks, dsregmaskvols, locVolumeAtlas, locVolumeSubjects, dsregvol] =  ...
+function [atlVolSize, subjmasks, dsregmaskvols, atlLoc2SubjSpace, subjLoc2AtlSpace, dsregvol] =  ...
     preloadTesting(reconSubjs, mods, testmdfile)
 % PRELOADTESTING preload (in this case, actually load volumes) for testing.
 %
@@ -26,7 +26,6 @@ function [atlVolSize, subjmasks, dsregmaskvols, locVolumeAtlas, locVolumeSubject
         subjdsvol = double(subjdsnii.img);
         subjVolSize = size(subjdsvol);
         subjDims = subjdsnii.hdr.dime.pixdim(2:4);
-        rSubjSpace = imref3d(subjVolSize, subjDims(2), subjDims(1), subjDims(3));
         subjmasks{s} = nii2vol(testmd.md.loadModality(mods.dsmask, reconSubj));
 
         % load subject data in atlas space (i.e. registered data)  
@@ -35,13 +34,12 @@ function [atlVolSize, subjmasks, dsregmaskvols, locVolumeAtlas, locVolumeSubject
         dsregvol = dsregnii.img;
         atlVolSize = size(dsregvol); % size of volumes in atlas space
         atlDims = dsregnii.hdr.dime.pixdim(2:4);
-        rAtlSpace = imref3d(atlVolSize, atlDims(2), atlDims(1), atlDims(3));
         dsmaskregnii = testmd.md.loadModality(mods.dsregmask, reconSubj);
         dsregmaskvols{s} = dsmaskregnii.img;
         regtformmat = load(testmd.md.getModality(mods.dsregmat, reconSubj));
 
         % get the locations in subject volume that correspond to voxel locations in the atlas volume 
-        locVolumeAtlas{s} = getCorrespondingLoc(atlVolSize, regtformmat.tform, rAtlSpace, rSubjSpace, subjVolSize);
-        locVolumeSubjects{s} = getCorrespondingLoc(subjVolSize, regtformmat.tform.invert, rSubjSpace, rAtlSpace, atlVolSize);
+        subjLoc2AtlSpace{s} = tform2cor3d(regtformmat.tform, subjVolSize, subjDims, atlVolSize, atlDims);
+        atlLoc2SubjSpace{s} = tform2cor3d(regtformmat.tform, subjVolSize, subjDims, atlVolSize, atlDims, 'backward');
     end
     
