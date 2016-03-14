@@ -18,99 +18,134 @@ function subvol2ecmwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFil
     nPatchesThresh = params.nPatchesThresh; 
     maxECMIter = params.maxECMIter; 
     tolerance = params.tolerance; 
+    gmmTolerance = params.gmmTolerance; 
     RECOMPUTECLUSTERS = params.RECOMPUTECLUSTERS; 
+    regstring = params.regstring;
+    
+    nDims = numel(patchSize);
 
     %% load subvolumes
-    q = load(dsSubvolMat); 
-    dsSubvols = q.subvolumes;
-    q = load(wtSubvolMat); 
-    wtSubvols = q.subvolumes;
-
-    %% split subvolumes into patches to 13x13x13
-    dsPatches = patchlib.vol2lib(dsSubvols, [superPatchSize 1]); 
-    wtPatches = patchlib.vol2lib(wtSubvols, [superPatchSize 1]);
-
-
+    tic
+    q = load(dsSubvolMat, 'subvolume'); 
+    dsSubvols = q.subvolume;
+    q = load(wtSubvolMat, 'subvolume'); 
+    wtSubvols = q.subvolume;
+    clear q;
+    fprintf('took %5.3f to load the subvolumes\n', toc);
+    
+    volSize = size(dsSubvols);
+    nSubj = volSize(nDims + 1);
+    diffPad = (superPatchSize-patchSize)/2;
+    assert(any(isIntegerValue(diffPad)), 'difference between superPatchSize and patchSize should be even');
+    
+    %% blur subvolume and train
     if (~exist(clusterIdxMat, 'file') || RECOMPUTECLUSTERS)
-        %% train clusters
-
-        % downsize the patches using the weights
-        warning('only using the sizes of the first dimension'); 
-        [downsizePatches] = appxDownsizePatches(dsPatches, wtPatches, superPatchSize(1), patchSize(1), ds, smallUs);
-
+        
+        sigmaBlur = 1/3 * (ds / smallUs);
+   
+        % weight-based blurring
+        dsBlurvol = volblur(dsSubvols.*wtSubvols, sigmaBlur); 
+        wtBlurvol = volblur(wtSubvols, sigmaBlur); 
+        smallBlurPatches = dsBlurvol./wtBlurvol; 
+        dsBlurvol = []; % clear volumes
+        wtBlurvol = []; % clear volumes
+        
+        % get library of blurred patches.
+        smallBlurPatches = cropVolume(smallBlurPatches, [diffPad+1 1], [size(dsSubvols(:,:,:,1))-diffPad nSubj]);
+        smallBlurPatches = patchlib.vol2lib(smallBlurPatches, [patchSize 1]);
+        
+        % resize to small blurred patches
+        nPatches = size(smallBlurPatches,1); 
+        subsampledSize = (ceil((ceil(smallUs/ds.*patchSize)/2)+0.5)*2)-1; 
+        smallBlurPatches = reshape(smallBlurPatches', [patchSize, nPatches]); 
+        smallBlurPatches = volresizeSimple(smallBlurPatches, [subsampledSize, nPatches], 'simplelinear');
+        smallBlurPatches = reshape(smallBlurPatches, [prod(subsampledSize), nPatches])'; 
+        
         % cluster the downsized patches
-        meanAdjDownsizePatches = bsxfun(@minus, downsizePatches, mean(downsizePatches, 2));
-        gmmopt = statset('Display', 'iter', 'MaxIter', 20, 'TolFun', tolerance);
-        gmmClust = fitgmdist(meanAdjDownsizePatches, gmmK, 'regularizationValue', 1e-4, 'replicates', 3, 'Options', gmmopt);
-        postVal = gmmClust.posterior(meanAdjDownsizePatches);
+        smallBlurPatches = bsxfun(@minus, smallBlurPatches, mean(smallBlurPatches, 2));
+        gmmopt = statset('Display', 'iter', 'MaxIter', 20, 'TolFun', gmmTolerance);
+        gmmClust = fitgmdist(smallBlurPatches, gmmK, regstring, 1e-4, 'replicates', 3, 'Options', gmmopt);
+        postVal = gmmClust.posterior(smallBlurPatches);
         [~, clusterIdx] = max(postVal, [], 2);
-
+        
+        smallBlurPatches = []; % clear variable
+        gmmClust = []; 
+        
         save(clusterIdxMat, 'clusterIdx', 'postVal');
-
+        
     else
         load(clusterIdxMat);
     end
 
-
+    % compute the proportion of patches in each cluster
+    pis = hist(clusterIdx, 1:gmmK)./numel(clusterIdx); 
+    
     %% crop patches to 9x9x9
+    dsPatches = cropVolume(dsSubvols, [diffPad+1 1], [size(dsSubvols(:,:,:,1))-diffPad nSubj]);
+    dsPatches = patchlib.vol2lib(dsPatches, [patchSize 1]);
+    
+    wtPatches = cropVolume(wtSubvols, [diffPad+1 1], [size(wtSubvols(:,:,:,1))-diffPad nSubj]);
+    wtPatches = patchlib.vol2lib(wtPatches, [patchSize 1]);
+    
+    
+    %% sample and initlize covariance/mean
 
-    % reshape to be volumes
-    N = size(dsPatches,1); 
-    dsPatchesVols = reshape(dsPatches', [superPatchSize N]);
-    wtPatchesVols = reshape(wtPatches', [superPatchSize N]);
-
-    % crop out the cetner of the volume
-    diffPad = (superPatchSize-patchSize)/2;
-    assert(any(isIntegerValue(diffPad)), 'difference between superPatchSize and patchSize should be even'); 
-    dsPatchesVolsCrop = cropVolume(dsPatchesVols, [diffPad+1 1], [superPatchSize-diffPad N]); 
-    wtPatchesVolsCrop = cropVolume(wtPatchesVols, [diffPad+1 1], [superPatchSize-diffPad N]); 
-
-    % reshape back
-    dsPatchesVolsCrop = reshape(dsPatchesVolsCrop, [prod(patchSize) N])'; 
-    wtPatchesVolsCrop = reshape(wtPatchesVolsCrop, [prod(patchSize) N])'; 
-
-
-    %% run ecm
-
+    means0 = zeros(gmmK, prod(patchSize)); 
+    sigmas0 = zeros(prod(patchSize), prod(patchSize), gmmK);
+    
+    nPatches = size(dsPatches,1); 
+    randomIdx = randperm(nPatches);
+    clusterIdxPerm = clusterIdx(randomIdx); 
+    allSamp = []; 
+    
+    for k = 1:gmmK
+        X0nans = dsPatches(clusterIdx==k,:); 
+        W0 = wtPatches(clusterIdx==k,:); 
+        X0nans(W0<threshold) = nan; 
+        tic;
+        [means0(k,:), sigmas0(:,:,k)] = ecmninitx(X0nans, 'twostage'); 
+        fprintf('took %5.3f to init ecm\n', toc);
+        
+        samp = randomIdx(clusterIdxPerm==k); 
+        allSamp = [allSamp samp(1:min(nPatchesThresh,length(samp)))]; 
+    end
+    
+    dsPatches = dsPatches(allSamp,:); 
+    wtPatches = wtPatches(allSamp,:); 
+    postVal = postVal(allSamp,:); 
+    clusterIdx = clusterIdx(allSamp); 
+    
+    %% run ecm 
     means = zeros(gmmK, prod(patchSize)); 
     sigmas = zeros(prod(patchSize), prod(patchSize), gmmK); 
-
     for k = 1:gmmK
 
         % get blurry patches
-        X0 = dsPatchesVolsCrop(clusterIdx == k, :);
+        X0 = dsPatches(clusterIdx == k, :);
         X0 = bsxfun(@minus, X0, mean(X0, 2));
 
         % get weights
-        W = wtPatchesVolsCrop(clusterIdx == k, :);
+        W0 = wtPatches(clusterIdx == k, :);
 
         % set up downsampled data with nans in any region with W < threshold
         X0nans = X0;
-        X0nans(W<threshold) = nan;
-
-        % get initial mean and covariance
-        [Mean0, Covar0] = ecmninit(X0nans, 'twostage'); 
-
-        % sample patches 
-        nclustpatches = sum(clusterIdx==k);
-        samp = randperm(nclustpatches,min(nPatchesThresh,nclustpatches));
-        X0nansampled = X0nans(samp,:);
-        X0sampled = X0(samp,:); 
-        Wsampled = W(samp,:); 
+        X0nans(W0<threshold) = nan;
 
         % if less than hackNum non NaN elements in column then add in some new points
-        [~, idxWvals] = sort(Wsampled, 'descend');
-        inds = sub2ind( size(Wsampled), idxWvals(1:minNonNan,:), ndgrid(1:size(Wsampled,2),1:minNonNan)' ); 
-        X0nansampled( inds(:) ) = X0sampled( inds(:) );
+        [~, idxWvals] = sort(W0, 'descend');
+        inds = sub2ind( size(W0), idxWvals(1:minNonNan,:), ndgrid(1:size(W0,2),1:minNonNan)' ); 
+        X0nans( inds(:) ) = X0( inds(:) );
 
         % run ecm 
-        [means(k,:), sigmas(:,:,k)] = ecmnmlex(X0nansampled, 'twostage', maxECMIter, tolerance, Mean0, Covar0);
+        tic;
+        [means(k,:), sigmas(:,:,k)] = ecmnmlex(X0nans, 'twostage', maxECMIter, tolerance, means0(k,:), sigmas0(:,:,k));
+        fprintf('took %5.3f for ecm cluster %d\n', toc, k);
 
     end
 
-
-    wg = wgmm(means, sigmas, hist(clusterIdx, 1:gmmK)./numel(clusterIdx));
-    save(wgmmMat, 'wg', 'clusterIdx', 'postVal', 'params' ); 
+    %% save wgmm
+    wg = wgmm(means, sigmas, pis);
+    save(wgmmMat, 'wg', 'allSamp', 'clusterIdx', 'postVal', 'params' ); 
 
     warning('remember to add small diagonal component to sigmas in next code'); 
 
