@@ -20,7 +20,7 @@ function [subvolR, srcMask, tgtMask] = vol2subvolInterpmat(R, srcLoc2tgtSpace, t
     % seeing if when you invert the process it returns a value smaller than the original value (in
     % which case it was missing some information from pixels not included)
 %     warning('this 0.999 threshold is just emperically set right now...'); 
-    tgtMask = (subvolR*subvolR'*ones(numel(tgtInd),1)) > 0.999 ;
+    tgtMask = (subvolR*subvolR'*ones(numel(tgtInd),1)) > 0.99 ;
     tgtMask = reshape(tgtMask, size(tgtInd)); 
     
     % create the mask of the src patch
