@@ -14,6 +14,11 @@ PATH_TRAIN=$1
 PATH_TEST_SUBJ=$2
 gmmver=$3
 
+# prepare SGE variables necessary to move SGE environment away from AFS.
+export SGE_LOG_PATH=/data/vision/polina/scratch/adalca/patchSynthesis/sge/
+export SGE_O_PATH=${SGE_LOG_PATH}
+export SGE_O_HOME=${SGE_LOG_PATH}
+
 # MCR file. This has to match the MCC version used in mcc.sh
 mcr=/data/vision/polina/shared_software/MCR/v82/
 
