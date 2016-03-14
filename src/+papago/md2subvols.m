@@ -30,8 +30,10 @@ function md2subvols(trainmdfile, mods, volNames, patchSize, gridSpacing, atlVolS
     patchSize = makenum(patchSize);
     gridSpacing = makenum(gridSpacing);
     atlVolSize = makenum(atlVolSize);
-    if ~iscell(mods), mods = cellfunc(@strtrim, str2cell(mods, ',')); end
-    if ~iscell(volNames), volNames = cellfunc(@strtrim, str2cell(volNames, ',')); end
+    if ~iscell(mods), mods = cellfunc(@strtrim, str2cell([mods, ','], ',')); end
+    if ~iscell(mods), mods = {mods}; end
+    if ~iscell(volNames), volNames = cellfunc(@strtrim, str2cell([volNames, ','], ',')); end
+    if ~iscell(volNames), volNames = {volNames}; end
 
     % load all volumes or matfilepointers
     if nargin == 8
