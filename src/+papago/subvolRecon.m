@@ -1,5 +1,5 @@
-function [quiltedSubvol, minSubvolLoc, cntvol] = subvolRecon(gmm, subvolLoc, subvolSize, atlPatchSize, ...
-    crmethod, keepk, dsSubjInAtl, dsSubjInAtlMask, dsSubj, dsSubjWeight, varargin)
+function [quiltedSubvol, minSubvolLoc, cntvol, modReconLocs, reconPatches] = ...
+    subvolRecon(gmm, subvolLoc, subvolSize, atlPatchSize, crmethod, keepk, dsSubjInAtl, dsSubjInAtlMask, dsSubj, dsSubjWeight, varargin)
 % reconstruct all patches within a subvolume and return the quiltedSubvol
 % along with its location in the full volume (minSubvolLoc) and the number
 % of patches that were used in reconstruting each pixel in the
@@ -45,7 +45,7 @@ function [quiltedSubvol, minSubvolLoc, cntvol] = subvolRecon(gmm, subvolLoc, sub
         for k = 1:keepk
             atlMu = gmm.mu(optk(k), :)' + meanAtlPatch(i);
             atlSigma = gmm.sigma(:, :, optk(k));
-            [reconPatches{i, k}, reconLocs{i, k}] = paffine.recon(atlMu, atlSigma, gatlLocs(i, :), ...
+            [reconPatches{i, k}, reconLocs{i, k}, newSigmas{i,k}] = paffine.recon(atlMu, atlSigma, gatlLocs(i, :), ...
                 atlPatchSize, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, crmethod, extraReconArgs{:});
             
             reconWeights{i, k} = reconPatches{i, k} * 0 + exp(logpost(optk(k)));
