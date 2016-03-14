@@ -64,7 +64,8 @@ function subvol2ecmwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFil
         % cluster the downsized patches
         smallBlurPatches = bsxfun(@minus, smallBlurPatches, mean(smallBlurPatches, 2));
         gmmopt = statset('Display', 'iter', 'MaxIter', 20, 'TolFun', gmmTolerance);
-        gmmClust = fitgmdist(smallBlurPatches, gmmK, regstring, 1e-4, 'replicates', 3, 'Options', gmmopt);
+        % gmmClust = fitgmdist(smallBlurPatches, gmmK, regstring, 1e-4, 'replicates', 3, 'Options', gmmopt);
+        gmmClust = gmdistribution.fit(smallBlurPatches, gmmK, regstring, 1e-4, 'replicates', 3, 'Options', gmmopt);
         postVal = gmmClust.posterior(smallBlurPatches);
         [~, clusterIdx] = max(postVal, [], 2);
         
