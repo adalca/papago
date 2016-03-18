@@ -64,7 +64,7 @@ if [ ! -f ${subjCorrFile} ] ; then
   subjCorrFile="${SUBJ_PATH}/${subjid}_ds5_us5_reg.mat"
 fi
 
-locfile="${OUTPUT_PATH}/selidx2loc_top343.txt"
+locfile="${OUTPUT_PATH}/selidx2loc_rest343.txt"
 mod="Ds${dsRate}Us${dsRate}Reg"
 
 ###############################################################################
@@ -100,7 +100,7 @@ do
   sge_par_o="--sge \"-o ${sgeopath}\""
   sge_par_e="--sge \"-e ${sgeopath}\""
   sge_par_l="--sge \"-l mem_free=100G \""
-  sge_par_q="--sge \"-q qSparse \""
+  sge_par_q="" #--sge \"-q qSparse \""
   sgerunfile="${sgeopath}/subvolRecon_${subjid}_${subvolInd}.sh"
   cmd="${PROJECT_PATH}sge/qsub-run -c $sge_par_o $sge_par_e $sge_par_l $sge_par_q ${lcmd} > ${sgerunfile}"
   echo $cmd
