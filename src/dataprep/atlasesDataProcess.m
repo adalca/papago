@@ -1,5 +1,5 @@
 %% process BUCKNER atlas 
-dsAmt = 2:7;
+dsAmt = 2:9;
 intNorm = 255;
 padAmts = [-1, 0, 10, 30];
 names = {'wholevol', 'brain', 'brain_pad10', 'brain_pad30'};
