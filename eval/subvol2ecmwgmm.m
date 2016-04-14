@@ -14,6 +14,7 @@ function subvol2ecmwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFil
     ds = params.ds; 
     smallUs = params.smallUs; 
     threshold = params.threshold; 
+    subtractMean = params.subtractMean;
     minNonNan = params.minNonNan; 
     nPatchesThresh = params.nPatchesThresh; 
     maxECMIter = params.maxECMIter; 
@@ -122,7 +123,9 @@ function subvol2ecmwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFil
 
         % get blurry patches
         X0 = dsPatches(clusterIdx == k, :);
-        X0 = bsxfun(@minus, X0, mean(X0, 2));
+        if subtractMean
+            X0 = bsxfun(@minus, X0, mean(X0, 2));
+        end
 
         % get weights
         W0 = wtPatches(clusterIdx == k, :);
@@ -138,9 +141,14 @@ function subvol2ecmwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFil
 
         % run ecm 
         tic;
-        [means(k,:), sigmas(:,:,k)] = ecmnmlex(X0nans, 'twostage', maxECMIter, tolerance, means0(k,:), sigmas0(:,:,k));
+        [means(k,:), sigmas(:,:,k), Zout] = ecmnmlex(X0nans, 'twostage', maxECMIter, tolerance, means0(k,:), sigmas0(:,:,k));
         fprintf('took %5.3f for ecm cluster %d\n', toc, k);
-
+        
+        if ~subtractMean
+            warning('hacky computation of non-subtracted-stats for now: Basically, since all other components assume extracted mean, we''re computing the stats based on the infered data. This is very very ugly :(');
+            means(k,:) = mean(bsxfun(@minus, Zout, mean(Zout, 2))); 
+            sigmas(:,:,k) = cov(bsxfun(@minus, Zout, mean(Zout, 2)));
+        end
     end
 
     %% save wgmm
