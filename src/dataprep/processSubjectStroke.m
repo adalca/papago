@@ -1,4 +1,5 @@
 function processSubjectStroke(md, subjid, intensityNorm, atlMods, regtype, padAmount, preregmod)
+
 % Like processmd, but for a single subject.
 % Assumes images have gone through  extraction and wmmatch
 
