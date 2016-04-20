@@ -94,6 +94,7 @@ while ~feof(f)                          % and read until it ends
     if (s(1)=='#')                      % '#' start comment lines
         continue;
     end;
+    
     if ( s(1)=='[' ) && (s(end)==']' )
         % We found section
         CurrMainField = genvarname(s(2:end-1));
