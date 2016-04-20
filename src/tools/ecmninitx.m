@@ -1,4 +1,4 @@
-function [Mean, Covar] = ecmninitx(Data, InitMethod)
+function [Mean, Covar] = ecmninitx(Data, InitMethod, Mean)
 %ECMNINIT Calculate initial mean and covariance for ECMNMLE.
 %	Initial estimates for the Mean and Covariance of Data, where Data has
 %	NUMSAMPLES samples of NUMSERIES random variables with missing data.
@@ -69,12 +69,20 @@ end
 
 if strcmp(InitMethod,'TWOSTAGE')
     
-        Mean = nanmean(Data)';
-        
-        Data = bsxfun(@minus, Data, Mean'); 
-        Data(isnan(Data)) = 0; 
-        
-        Covar = Data'*Data ./ NumSamples;
+    Mean = nanmean(Data)';
+
+    Data = bsxfun(@minus, Data, Mean'); 
+    Data(isnan(Data)) = 0; 
+
+    Covar = Data'*Data ./ NumSamples;
+    
+elseif strcmp(InitMethod,'TWOSTAGEV2') % given mean but not covar
+    
+    Data = bsxfun(@minus, Data, Mean); 
+    Data(isnan(Data)) = 0; 
+
+    Covar = Data'*Data ./ NumSamples;
+          
 elseif strcmp(InitMethod,'DIAGONAL')
 	Mean = nanmean(Data)';
 	Covar = diag(nanvar(Data,1));

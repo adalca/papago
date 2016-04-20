@@ -1,5 +1,5 @@
 function [Mean, Covar, Zout] = ecmnmlex(Data, InitMethod, ...
-   MaxIter, Tolerance, Mean0, Covar0)
+   MaxIter, Tolerance, Mean0, Covar0, dopca)
 %ECMNMLE Estimate mean and covariance of incomplete multivariate normal data.
 %	Use the expectation conditional maximization (ECM) algorithm to estimate
 %	NUMSERIES x 1 mean column vector Mean and NUMSERIES x NUMSERIES covariance
@@ -138,7 +138,12 @@ if sum(sum(isinf(Data)))
 end
 
 if isempty(Mean0) || isempty(Covar0)
-   [Mean0, Covar0] = ecmninitx(Data,InitMethod);
+    if ~isempty(Mean0)
+        [Mean0, Covar0] = ecmninitx(Data, InitMethod, Mean0);
+    else
+        [Mean0, Covar0] = ecmninitx(Data, InitMethod);
+    end
+        
 else
    Mean0 = Mean0(:);
    if ~all(size(Mean0) == [NumSeries, 1])
@@ -249,6 +254,19 @@ for Iteration = 1:MaxIter
    Zoutmean = []; 
    
    Covar = (1.0/Count) .* Covar;
+   
+   
+   % do pca
+   if exist('dopca', 'var') && dopca
+       [u,s,v] = svd(Covar);
+       ds = diag(s);
+       explained = cumsum(ds)./sum(ds);
+       f = find(explained < 0.75, 1, 'last')
+       sigmasq = 1 ./ (size(u,2) - f) * sum(ds(f+1:end));
+       W = u(:, 1:f) * sqrt(s(1:f, 1:f) - sigmasq*eye(f));
+       Covar = W*W' + sigmasq*eye(size(u,2));
+   end
+   
    
    % add the mean back into the expected patches
    %Zout = bsxfun(@plus, Zout, Mean'); 
