@@ -1,4 +1,4 @@
-function subvol2ecmwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFilename)
+function subvol2ppcawgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFilename)
 % dsSubvolMat - matfile name of subvolume
 % wtSubvolMat - matfile name of weights
 % iniFilename - ini filename with parameters (input)
@@ -91,8 +91,8 @@ function subvol2ecmwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFil
     
     %% sample and initlize covariance/mean
 
-    means0 = zeros(gmmK, prod(patchSize)); 
-    sigmas0 = zeros(prod(patchSize), prod(patchSize), gmmK);
+    means = zeros(gmmK, prod(patchSize)); 
+    sigmas = zeros(prod(patchSize), prod(patchSize), gmmK);
     
     nPatches = size(dsPatches,1); 
     randomIdx = randperm(nPatches);
@@ -100,41 +100,35 @@ function subvol2ecmwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFil
     allSamp = []; 
     
     for k = 1:gmmK
-        X0 = dsPatches(clusterIdx==k,:); 
+        X0 = dsPatches(clusterIdx==k,:);
+        assert(~subtractMean, 'subtractMean not well tested yet');
         if subtractMean
             X0 = bsxfun(@minus, X0, mean(X0, 2));
         end
         W0 = wtPatches(clusterIdx==k,:); 
         X0(W0<threshold) = nan; 
         
-        if params.ppcaInit
-            X0 = dsPatches(clusterIdx==k,:); 
-            
-            
-            pk = params.ppcaK;
-            d = size(X0, 2);
-            tic;
-            [u, s, v] = svd(cov(X0)); 
-            
-            X0(W0<threshold) = nan; 
-            vinit = (1 ./ (d-pk)) * sum(diag(s((pk+1):d, (pk+1):d)));
-            Winit = u(:, 1:pk) * (sqrt(s(1:pk, 1:pk)) - vinit * eye(pk));
-            opts = struct('TolFun', params.ppcaTolFun, 'TolX', params.ppcaTolX, 'Display', 'iter', 'MaxIter', params.maxPPCAiter);
-            [COEFF, SCORE, LATENT, MU, V, S] = ppcax(X0, pk, 'Options', opts, 'W0', Winit);
-            if subtractMean
-                srecon = bsxfun(@minus, S.Recon, mean(S.Recon, 2));
-            else
-                srecon = S.Recon;
-            end
-            means0(k,:) = mean(srecon);
-            sigmas0(:,:,k) = cov(srecon) + eye(size(X0,2)) * 0.00001;
-            fprintf('ppca cluster %d done in %5.3fs\n', k, toc);
+        
+        X0 = dsPatches(clusterIdx==k,:); 
+        pk = params.ppcaK;
+        d = size(X0, 2);
+        tic;
+        [u, s, v] = svd(cov(X0)); 
+
+        X0(W0<threshold) = nan; 
+        vinit = (1 ./ (d-pk)) * sum(diag(s((pk+1):d, (pk+1):d)));
+        Winit = u(:, 1:pk) * (sqrt(s(1:pk, 1:pk)) - vinit * eye(pk));
+        opts = struct('TolFun', params.ppcaTolFun, 'TolX', params.ppcaTolX, 'Display', 'iter', 'MaxIter', params.maxPPCAiter);
+        [COEFF, SCORE, LATENT, MU, V, S] = ppcax(X0, pk, 'Options', opts, 'W0', Winit);
+        if subtractMean
+            srecon = bsxfun(@minus, S.Recon, mean(S.Recon, 2));
         else
-            tic;
-            warning('using non mean-subtracted');
-            [means0(k,:), sigmas0(:,:,k)] = ecmninitx(X0, 'twostage'); 
-            fprintf('took %5.3f to init ecm\n', toc);
+            srecon = S.Recon;
         end
+        means(k,:) = mean(srecon);
+        sigmas(:,:,k) = cov(srecon) + eye(size(X0,2)) * 0.00001;
+        fprintf('ppca cluster %d done in %5.3fs\n', k, toc);
+
         
         samp = randomIdx(clusterIdxPerm==k); 
         allSamp = [allSamp samp(1:min(nPatchesThresh,length(samp)))]; 
@@ -144,42 +138,6 @@ function subvol2ecmwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFil
     wtPatches = wtPatches(allSamp,:); 
     postVal = postVal(allSamp,:); 
     clusterIdx = clusterIdx(allSamp); 
-    
-    %% run ecm 
-    means = zeros(gmmK, prod(patchSize)); 
-    sigmas = zeros(prod(patchSize), prod(patchSize), gmmK); 
-    for k = 1:gmmK
-
-        % get blurry patches
-        X0 = dsPatches(clusterIdx == k, :);
-        if subtractMean
-            X0 = bsxfun(@minus, X0, mean(X0, 2));
-        end
-
-        % get weights
-        W0 = wtPatches(clusterIdx == k, :);
-
-        % set up downsampled data with nans in any region with W < threshold
-        X0 = X0;
-        X0(W0<threshold) = nan;
-
-        % if less than hackNum non NaN elements in column then add in some new points
-        [~, idxWvals] = sort(W0, 'descend');
-        inds = sub2ind( size(W0), idxWvals(1:minNonNan,:), ndgrid(1:size(W0,2),1:minNonNan)' ); 
-        X0( inds(:) ) = X0( inds(:) );
-
-        % run ecm 
-        tic;
-        [means(k,:), sigmas(:,:,k), Zout] = ecmnmlex(X0, 'twostage', maxECMIter, tolerance, means0(k,:), sigmas0(:,:,k));
-        fprintf('took %5.3f for ecm cluster %d\n', toc, k);
-        
-        if ~subtractMean
-            warning('hacky computation of non-subtracted-stats for now: Basically, since all other components assume extracted mean, we''re computing the stats based on the infered data. This is very very ugly :(');
-            means(k,:) = mean(bsxfun(@minus, Zout, mean(Zout, 2))); 
-            sigmas(:,:,k) = cov(bsxfun(@minus, Zout, mean(Zout, 2)));
-        end
-        assert(isclean(sigmas));
-    end
 
     %% save wgmm
     wg = wgmm(means, sigmas, pis);
