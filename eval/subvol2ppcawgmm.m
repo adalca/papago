@@ -94,11 +94,22 @@ function subvol2ppcawgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFi
     means = zeros(gmmK, prod(patchSize)); 
     sigmas = zeros(prod(patchSize), prod(patchSize), gmmK);
     
+    % sample first.
     nPatches = size(dsPatches,1); 
     randomIdx = randperm(nPatches);
     clusterIdxPerm = clusterIdx(randomIdx); 
     allSamp = []; 
+    for k = 1:gmmK
+        samp = randomIdx(clusterIdxPerm==k); 
+        locsamp = samp(1:min(nPatchesThresh,length(samp)));
+        allSamp = [allSamp locsamp]; 
+    end
+    dsPatches = dsPatches(allSamp,:); 
+    wtPatches = wtPatches(allSamp,:); 
+    postVal = postVal(allSamp,:); 
+    clusterIdx = clusterIdx(allSamp); 
     
+    % ppca
     for k = 1:gmmK
         X0 = dsPatches(clusterIdx==k,:);
         assert(~subtractMean, 'subtractMean not well tested yet');
@@ -128,16 +139,9 @@ function subvol2ppcawgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFi
         means(k,:) = mean(srecon);
         sigmas(:,:,k) = cov(srecon) + eye(size(X0,2)) * 0.00001;
         fprintf('ppca cluster %d done in %5.3fs\n', k, toc);
-
-        
-        samp = randomIdx(clusterIdxPerm==k); 
-        allSamp = [allSamp samp(1:min(nPatchesThresh,length(samp)))]; 
     end
     
-    dsPatches = dsPatches(allSamp,:); 
-    wtPatches = wtPatches(allSamp,:); 
-    postVal = postVal(allSamp,:); 
-    clusterIdx = clusterIdx(allSamp); 
+
 
     %% save wgmm
     wg = wgmm(means, sigmas, pis);
