@@ -257,11 +257,12 @@ for Iteration = 1:MaxIter
    
    
    % do pca
-   if exist('dopca', 'var') && dopca
+   if exist('dopca', 'var') && dopca > 0
        [u,s,v] = svd(Covar);
        ds = diag(s);
        explained = cumsum(ds)./sum(ds);
-       f = find(explained < 0.75, 1, 'last')
+%        f = find(explained < 0.70, 1, 'last')
+        f = dopca;
        sigmasq = 1 ./ (size(u,2) - f) * sum(ds(f+1:end));
        W = u(:, 1:f) * sqrt(s(1:f, 1:f) - sigmasq*eye(f));
        Covar = W*W' + sigmasq*eye(size(u,2));
