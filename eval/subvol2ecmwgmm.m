@@ -110,13 +110,14 @@ function subvol2ecmwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFil
         
         if params.ppcaInit
             X0 = dsPatches(clusterIdx==k,:); 
-            X0(W0<threshold) = nan; 
+            
             
             pk = params.ppcaK;
             d = size(X0, 2);
             tic;
             [u, s, v] = svd(cov(X0)); 
             
+            X0(W0<threshold) = nan; 
             vinit = (1 ./ (d-pk)) * sum(diag(s((pk+1):d, (pk+1):d)));
             Winit = u(:, 1:pk) * (sqrt(s(1:pk, 1:pk)) - vinit * eye(pk));
             opts = struct('TolFun', params.ppcaTolFun, 'TolX', params.ppcaTolX, 'Display', 'iter', 'MaxIter', params.maxPPCAiter);
@@ -127,7 +128,7 @@ function subvol2ecmwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFil
                 srecon = S.Recon;
             end
             means0(k,:) = mean(srecon);
-            sigmas0(:,:,k) = cov(srecon);
+            sigmas0(:,:,k) = cov(srecon) + eye(size(X0,2)) * 0.00001;
             fprintf('ppca cluster %d done in %5.3fs\n', k, toc);
         else
             tic;
@@ -178,6 +179,7 @@ function subvol2ecmwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFil
             means(k,:) = mean(bsxfun(@minus, Zout, mean(Zout, 2))); 
             sigmas(:,:,k) = cov(bsxfun(@minus, Zout, mean(Zout, 2)));
         end
+        assert(isclean(sigmas));
     end
 
     %% save wgmm
