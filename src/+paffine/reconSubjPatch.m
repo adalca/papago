@@ -16,6 +16,7 @@ function [reconPatch, invBb, varargout] = reconSubjPatch(subjPatch, subjWeightPa
     if nargout > 2
         varargout = {[]};
     end
+    assert(islogical(subjPatchValidRegion));
 
     % get the part of the subject patch corresponding to the atlas patch
     subjPatchWithNans = subjPatch;
@@ -31,4 +32,3 @@ function [reconPatch, invBb, varargout] = reconSubjPatch(subjPatch, subjWeightPa
     % recon the subject patch
     reconPatch = nan(size(subjPatch));
     reconPatch(subjPatchValidRegion) = subjPatchAtlReconVoxels;
-    
