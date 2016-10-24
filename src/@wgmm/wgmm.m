@@ -1,9 +1,11 @@
 classdef wgmm < handle
-    % WGMM Weighted GMM class
-    %   Weighted Gaussian Mixture Model (WGMM). Behaves similarly to a Gaussian Mixture Model (in
-    %   fact, in some cases it will behave exactly like a GMM), but allows for the specification of
-    %   "weights" of each feature in each point. This allows the exploration for a richer set of
-    %   problems, and leads to slightly different updates than those for the usual GMM.
+    % WGMM: Gaussian Mixture Model with weighted or missing data
+    %
+    % Behaves similarly to a Gaussian Mixture Model (in fact, in some cases it will behave exactly
+    % like a GMM), but allows for the specification of "weights" of each feature in each point. If
+    % the weights are logical (0/1), this is treated as a missing data problem. This allows the
+    % exploration for a richer set of problems, and leads to different updates than those for the
+    % usual GMM.
     %
     % Weighted GMM might go by other names as well, such as sparse GMM.
     %
