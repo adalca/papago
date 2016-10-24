@@ -1,10 +1,10 @@
 #!/bin/bash
-# sgeSubvol2ecmwgmm
+# sgeSubvol2ppcawgmm
 #
 # examples
-# ./sgeSubvol2ecmwgmm.sh ADNI_T1_baselines mar12_2016 Ds5Us5Reg wholevol 5
+# ./sgeSubvol2ppcawgmm.sh ADNI_T1_baselines mar12_2016 Ds5Us5Reg wholevol ppca_K5_ppcaK3_apr21 <5>
 
-if [ "$#" -lt 4 ] ; then
+if [ "$#" -lt 5 ] ; then
   echo "Usage: $0 dataName subvolVer mod proctype <dsFact>" >&2
   exit 1
 fi
@@ -16,6 +16,7 @@ mod=$3 # e.g. Ds5Us5Reg. Mask will be added for the weight.
 procType=$4 # wholevol brain_pad10 brain_pad30
 suffix="$5" # e.g. ppca_K5_ppcaK3_apr21
 if [ "$#" -lt 6 ] ; then dsRate="5"; else dsRate="$6"; fi
+
 
 ###############################################################################
 # Paths
@@ -37,17 +38,24 @@ PROJECT_PATH="/data/vision/polina/users/adalca/patchSynthesis/subspace/git/"
 CLUST_PATH="/data/vision/polina/users/adalca/patchSynthesis/subspace/MCC/";
 
 # command shell file
-mccSh="${CLUST_PATH}MCC_subvol2ecmwgmm/run_subvol2ecmwgmm.sh"
+mccSh="${CLUST_PATH}MCC_subvol2ppcawgmm/run_subvol2ppcawgmm.sh"
 
 # setting files
-inifilename="${PROJECT_PATH}/ini/subvol2ecmwgmm.ini"
 locfile="${OUTPUT_PATH}/selidx2loc_top343.txt"
+ininame="subvol2ppcawgmm.ini"
+oinifilename="${PROJECT_PATH}/ini/${ininame}"
+inifilename="${RECONFILES_PATH}/${ininame}"
+if [ ! -f ${inifilename} ] ; then
+    mkdir -p ${RECONFILES_PATH}
+    cp ${oinifilename} ${inifilename}
+else
+    echo "skipping copying of ini file. Already found ${inifilename}"
+fi  
+
 
 ###############################################################################
 # Running Code
 ###############################################################################
-
-mkdir -p ${RECONFILES_PATH}
 
 # execute
 while read line
@@ -58,17 +66,22 @@ do
   clusterIdxMat="${RECONFILES_PATH}clusterIdx_${dataName}_${procType}_${mod}_subvol${subvolInd}.mat"
   wgmmMat="${RECONFILES_PATH}wgmm_${dataName}_${procType}_${mod}_subvol${subvolInd}.mat"
 
-  # subvol2ecmwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFilename)
+  if [ -f ${wgmmMat} ] ; then
+    printf "skipping $subvolInd since ${wgmmMat} is present \n\n"
+    continue;
+  fi
+
+  # subvol2ppcawgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFilename)
   lcmd="${mccSh} $mcr $dsSubvolMat $wtSubvolMat $clusterIdxMat $wgmmMat $inifilename"
 
   # create sge file
-  sgeopath="${OUTPUT_PATH}/sge/"
+  sgeopath="${RECONFILES_PATH}/sge/"
   mkdir -p ${sgeopath}
   sge_par_o="--sge \"-o ${sgeopath}\""
   sge_par_e="--sge \"-e ${sgeopath}\""
   sge_par_l="--sge \"-l mem_free=10G \""
   sge_par_q="--sge \"-q qSparse \""
-  sgerunfile="${sgeopath}/subvol2ecmwgmm_${subvolInd}.sh"
+  sgerunfile="${sgeopath}/subvol2ppcawgmm_${subvolInd}.sh"
   cmd="${PROJECT_PATH}sge/qsub-run -c $sge_par_o $sge_par_e $sge_par_l $sge_par_q ${lcmd} > ${sgerunfile}"
 #   echo $cmd
   eval $cmd
@@ -76,7 +89,7 @@ do
 
   # run sge
   sgecmd="qsub ${sgerunfile}"
-#   echo $sgecmd
+  echo $sgecmd
   $sgecmd
 
   # sleep for a bit to give sge time to deal with the new job (?)
