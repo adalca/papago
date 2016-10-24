@@ -11,32 +11,23 @@ function prepHugeMatfileForVolumeSplitting(mdpath, mod, outmatfile)
     
     % get subjects
     tic;
-    needinit = true;
+    
     nSubjects = md.getNumSubjects();
-    vi = verboseIter(1:nSubjects, 2);
-    volIdx = 1:nSubjects;
-    missing = false(size(volIdx));
+    volIdx = find(arrayfun(@(v) sys.isfile(md.getModality(mod, v)), 1:nSubjects));
+    fprintf('found %d/%d files\n', numel(volIdx),md.getNumSubjects());
+    
+    volume = md.loadVolume(mod, volIdx(1));
+    volumes = zeros([size(volume), numel(volIdx)]);
+    volumes(:,:,:,1) = volume;
+    
+    vi = verboseIter(volIdx, 2);
     while vi.hasNext()
-        i = vi.next();
-        if ~sys.isfile(md.getModality(mod, i));
-            missing(i) = true;
-            continue;
-        end
-            
-        if needinit
-            volume = md.loadVolume(mod, i);
-            volumes = zeros([size(volume), nSubjects]);
-            volumes(:,:,:,i) = volume;
-            needinit = false;
-        else
-            volumes(:,:,:,i) = md.loadVolume(mod, i);
-        end
+        [vii, idx] = vi.next();
+        v = md.loadVolume(mod, vii);
+        volumes(:,:,:,idx) = v;
     end
-    volIdx(missing) = []; 
     vi.close();
     toc;
-    
-    volumes = volumes(:,:,:,volIdx); %#ok<NASGU>
         
     % save matfile
     tic;
