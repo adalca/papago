@@ -1,8 +1,9 @@
 function nloglk_new = ppcax_incomplete_nlogl(Y, mu, Wnew, vnew)
+% Y is p-by-n
+% mu is a vector of size p
 
-    Y = Y';
     obs = ~isnan(Y);
-    mu = mu';
+    mu = mu(:);
 
 %     Compute negative log-likelihood function
     nloglk_new = 0;
