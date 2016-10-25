@@ -1,22 +1,23 @@
-function mstep(wgmm, X, W, K, gammank)
+function mstep(wgmm, X, W, K)
 % m-step (parameter updates)
+    
 
-	narginchk(5, 5);
-    Nk = sum(gammank, 1);
+	narginchk(4, 4);
+    Nk = sum(wgmm.expect.gammank, 1);
     
     % mu update
-    wgmm.mu = muupdate(wgmm, X, W, K, gammank);
+    wgmm.mu = muupdate(wgmm, X, W, K, wgmm.muUpdateMethod);
     if wgmm.debug
         assert(~strncmp(wgmm.muUpdateMethod, 'memsafe', 7));
-        muc = muupdate(wgmm, gammank,  X, W, K, ['memsafe-', wgmm.muUpdateMethod]);
+        muc = muupdate(wgmm, X, W, K, ['memsafe-', wgmm.muUpdateMethod]);
         fprintf(2, 'debug mudiff: %f\n', max(abs(wgmm.mu(:) - muc(:))));
     end
     
     % sigma update
-    [wgmm.sigma, wgmm.sigmainv] = sigmaupdate(wgmm, X, W, K, gammank);
+    [wgmm.sigma, wgmm.sigmainv] = sigmaupdate(wgmm, X, W, K);
     if wgmm.debug
         assert(~strncmp(wgmm.sigmaUpdateMethod, 'memsafe', 7));
-        sigmac = sigmaupdate(wgmm,  X, W, K, gammank, ['memsafe-', wgmm.covarUpdateMethod]);
+        sigmac = sigmaupdate(wgmm, X, W, K, ['memsafe-', wgmm.covarUpdateMethod]);
         fprintf(2, 'debug sigmadiff: %f\n', max(abs(wgmm.sigma - sigmac)));
     end
     
@@ -26,7 +27,8 @@ function mstep(wgmm, X, W, K, gammank)
 end
 
 % mu update
-function mu = muupdate(wgmm, X, W, K, gammank, method)
+function mu = muupdate(wgmm, X, W, K, method)
+    gammank = wgmm.expect.gammank; % all models have the cluster assignment probability expectation
     
     % prepare the mu update method
     if ~exist('method', 'var'); 
@@ -89,7 +91,7 @@ function mu = muupdate(wgmm, X, W, K, gammank, method)
                 mu(k, :) = numer ./ denom;
             end
             
-        case 'model5'
+        case 'model4'
             for k = 1:K
                 numer = 0;
                 denom = 0;
@@ -108,6 +110,13 @@ function mu = muupdate(wgmm, X, W, K, gammank, method)
                 mu(k, :) = denom \ numer; 
             end
             
+        case 'model5'
+            % compute mu without weights
+            Xr = wgmm.expect.Xk; % is N-by-D-by-K
+            for k = 1:K
+                mu(k, :) = gammank(:, k)' * Xr(:,:,k) ./ sum(gammank(:, k));
+            end
+            
         otherwise
             error('unknown mu update method');
     end
@@ -117,7 +126,7 @@ function mu = muupdate(wgmm, X, W, K, gammank, method)
 end
 
 % sigma update
-function [sigma, sigmainv] = sigmaupdate(wg, X, W, K, gammank)
+function [sigma, sigmainv] = sigmaupdate(wg, X, W, K)
     
     methods = struct('core', wg.covarUpdateMethod, 'recon', wg.covarReconMethod, ...
         'merge', wg.covarMergeMethod);
@@ -126,5 +135,5 @@ function [sigma, sigmainv] = sigmaupdate(wg, X, W, K, gammank)
         opts.mergeargs = {opts.mergeargs};
     end
     
-    [sigma, sigmainv] = wg.sigmafull(wg.mu, X, W, K, gammank, methods, opts, wg);
+    [sigma, sigmainv] = wg.sigmafull(wg.mu, X, W, K, methods, opts, wg);
 end

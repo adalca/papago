@@ -170,43 +170,67 @@ function sigma = sigmacore(mu, X, W, K, gammank, coremethod, coreargs, wg)
 %                 sigma(:, :, k) = sigmak - 0.00001 * numer ./ sum(gammank(:, k)); 
 %             end    
 
-        fprintf(2, 'current using init with sigma of y (noisy data). Maybe use previous sigma?');
-        
+%         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%         % MICCAI2016 Push implementation.
+%         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%         fprintf(2, 'current using init with sigma of y (noisy data). Maybe use previous sigma?');
+% 
+%         for k = 1:K
+%             muk = wg.mu(k, :);
+%             xc = bsxfun(@minus, X, muk);
+%             
+%             % compute sigma for this cluster ffrom noisy data xc.
+%             gw = sqrt(gammank(:, k));
+%             wx = bsxfun(@times, gw, xc);
+%             aa = wx' * wx; % gamma * (x-u) (x-u)'
+%             sigmainitk = aa ./ sum(gammank(:, k));
+%             
+%             % hack 1
+%             numer = 0; denom = 0; 
+%             meanD = 0;
+%             for i = 1:size(X, 1)
+%                 w = W(i, :); 
+%                 x = X(i, :);
+%                 df = (x - muk);
+%                 dfd = df(:) * (df(:))';
+% 
+%                 Di = wg.model4fn(w);
+%                 sg = sigmainitk + Di;
+% 
+%                 numer = numer + (sg \ dfd);
+%                 %denom = denom + inv(sg);
+%                 denom = denom + inv(sg) + inv(sg) * dfd * inv(sigmainitk) * Di * inv(sigmainitk);
+% 
+%                 meanD = meanD + Di;
+%             end
+%             meanD = meanD ./ size(X, 1);
+%             sigma(:,:,k) = (denom \ numer) - meanD ./ 8; % empirical ./4
+%             % sigma(:,:,k) = (denom \ numer); 
+%             
+%         end
 
-        for k = 1:K
-            muk = wg.mu(k, :);
-            xc = bsxfun(@minus, X, muk);
-            
-            % compute sigma for this cluster ffrom noisy data xc.
-            gw = sqrt(gammank(:, k));
-            wx = bsxfun(@times, gw, xc);
-            aa = wx' * wx; % gamma * (x-u) (x-u)'
-            sigmainitk = aa ./ sum(gammank(:, k));
-            
-            % hack 1
-            numer = 0; denom = 0; 
-            meanD = 0;
-            for i = 1:size(X, 1)
-                w = W(i, :); 
-                x = X(i, :);
-                df = (x - muk);
-                dfd = df(:) * (df(:))';
+            for k = 1:K
+                muk = wg.mu(k, :);
 
-                Di = wg.model4fn(w);
-                sg = sigmainitk + Di;
+                % model 5
+                df = bsxfun(@minus, wg.expect.Xk(:,:,k), muk);
+                numer = 0; 
+                for i = 1:size(X, 1)
+                    % extract important terms.
+                    w = W(i, :);
+                    Di = wg.model4fn(w);
+                    dfd = df(i, :)' * df(i, :);
+                    sk = wg.sigma(:,:,k);
 
-                numer = numer + (sg \ dfd);
-                %denom = denom + inv(sg);
-                denom = denom + inv(sg) + inv(sg) * dfd * inv(sigmainitk) * Di * inv(sigmainitk);
+                    % previous sigma^{Rt}_{ik}. We can't precompute this due to the size.
+                    sigmaikr = Di * ( (Di + sk) \ sk);
 
-                meanD = meanD + Di;
+                    % update numerator and denominator.
+                    numer = numer + gammank(i, k) .* (sigmaikr + dfd);
+                end
+                sigma(:,:,k) = numer ./ sum(gammank(:, k));
             end
-            meanD = meanD ./ size(X, 1);
-            sigma(:,:,k) = (denom \ numer) - meanD ./ 8; % empirical ./4
-            % sigma(:,:,k) = (denom \ numer); 
-            
-        end
-
+        
         otherwise
             error('unknown covarianceupdate');
     end

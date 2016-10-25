@@ -40,11 +40,7 @@ function fwgmm = fit(X, W, K, varargin)
         ll = [];
         
         % First E step and ll
-        if strcmp(wg.logpUpdateMethod, 'model4')
-            [ll(1), gammank, betan] = wg.estep(X, W);
-        else
-            [ll(1), gammank] = wg.estep(X, W);
-        end
+        ll(1) = wg.estep(X, W);
         
         % print inital ll
         printiter(wg, opt, ll, r);
@@ -54,21 +50,10 @@ function fwgmm = fit(X, W, K, varargin)
         while (llpchange > opt.TolFun) && ct <= opt.maxIter
 
             % M step
-            if strcmp(wg.logpUpdateMethod, 'model4')
-                % assert(strcmp(wg.covarUpdateMethod, 'model0'));
-                % assert(strcmp(wg.muUpdateMethod, 'model0'));
-%                 wg.mstep(betan, W*0+1, K, gammank);
-                wg.mstep(betan, W, K, gammank);
-            else
-                wg.mstep(X, W, K, gammank);
-            end
+            wg.mstep(X, W, K);
             
             % E step
-            if strcmp(wg.logpUpdateMethod, 'model4')
-                [ll(ct+1), gammank, betan] = wg.estep(X, W);
-            else
-                [ll(ct+1), gammank] = wg.estep(X, W);
-            end
+            ll(ct+1) = wg.estep(X, W);
 
             % check log likelihood
             sys.warnif(~(ll(ct+1) >= ll(ct)), sprintf('log lik went down in repl:%d iter:%d', r, ct));

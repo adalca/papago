@@ -1,7 +1,9 @@
 function [sigma, sigmainv, sigmacore, sigmarecon, sigmamerge] = ...
-    sigmafull(mu, X, W, K, gammank, methods, opts, wg)
+    sigmafull(mu, X, W, K, methods, opts, wg)
 % compute the full sigma, including the sigma core (sigmac), reconstruction (sigmar), ...
 % regularization and PD-fix
+
+    gammank = wg.expect.gammank;
 
     % compute the core
     sigmacore = wgmm.sigmacore(mu, X, W, K, gammank, methods.core, opts, wg);
