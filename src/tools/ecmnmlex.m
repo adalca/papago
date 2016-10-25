@@ -232,7 +232,9 @@ for Iteration = 1:MaxIter
             Z(P) = mX + CXY * (CYY \ (Y - mY));
             Z(Q) = Y;
             
-            CovAdj(P,P) = CXX - CXY * (CYY \ CXY' );
+            tmp1 = (CYY \ CXY');
+            tmp2 = CXY * tmp1;
+            CovAdj(P,P) = CXX - tmp2;
 
          end
          Zout(i, :) = Z(:)';
