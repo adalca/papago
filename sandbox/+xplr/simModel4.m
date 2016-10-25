@@ -172,29 +172,37 @@ fn3 = @(w) diag((-log(w))) * Adj * diag((-log(w))) * 0.0006;
 fn4 = @(w) (-log(w))' * (-log(w)) .* Adj * 0.0006;
 % view2D({D1, D2; D3 D4}, 'titles', {'D=diag(-log(W)).^2', 'Adj*D', 'sqrt(D)*Adj*sqrt(D)', '(W''W)*Adj'}); colormap gray;
 
+[Xt, cl] = gmmIso.sample(nSimSamples);
 W = bucknerDsMaskPatchCol(randsample(size(bucknerDsMaskPatchCol, 1), nSimSamples), :);
 W = max(W, 0.000001);
 
 X0 = zeros(size(Xt));
 for i = 1:size(Xt, 1)
     w = W(i, :);
-    %D = diag((-log(w)).^2);
     D = fn3(w);
     X0(i, :) = mvnrnd(Xt(i, :), D);
 end
+x0err = msd(Xt(:), X0(:));
 
 % estimate gmm.
 wg = wgmm.fit(X0, W, gmmK, 'replicates', 3, 'model4fn', fn3); % ! with defaults set to model 4.
-
 % estimate Xhat and cluster assignments
-[~, gammank, Xhat] = wg.estep(X0, W);
+[~, gammank, Xhat4] = wg.estep(X0, W);
 [~, cidxhat] = max(gammank, [], 2);
-xhaterr = msd(Xt(:), Xhat(:));
+xhat4err = msd(Xt(:), Xhat4(:));
+
+wg = wgmm.fit(X0, W, gmmK, 'replicates', 3, 'updateMethod', 'model5', 'model4fn', fn3);
+[~, gammank, Xhat5] = wg.estep(X0, W);
+[~, cidxhat] = max(gammank, [], 2);
+xhat5err = msd(Xt(:), Xhat5(:));
+
 
 figure(); % xhat vs x0 error
-subplot(221); plot(Xt, X0, 'b.'); title(sprintf('original err, msd: %3.2f', x0err));
-subplot(222); plot(Xt, Xhat, 'b.'); title(sprintf('xhat err, msd: %3.2f', xhaterr));
-subplot(223); histogram(msd(Xt, X0, 2)); title(sprintf('original err hist'));
-subplot(224); histogram(msd(Xt, Xhat, 2)); title(sprintf('xhat err hist'));
+subplot(231); plot(Xt, X0, 'b.'); title(sprintf('original err, msd: %3.2f', x0err));
+subplot(232); plot(Xt, Xhat4, 'b.'); title(sprintf('xhat err, msd: %3.2f', xhat4err));
+subplot(233); plot(Xt, Xhat5, 'b.'); title(sprintf('xhat 4 err, msd: %3.2f', xhat5err));
+subplot(234); histogram(msd(Xt, X0, 2)); title(sprintf('original err hist'));
+subplot(235); histogram(msd(Xt, Xhat4, 2)); title(sprintf('xhat err hist'));
+subplot(236); histogram(msd(Xt, Xhat5, 2)); title(sprintf('xhat 5 err hist'));
 
 

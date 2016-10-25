@@ -4,17 +4,17 @@
 setup
 
 %% parameters
-nSimSamples = 1000;
+nSimSamples = 4750;
 
 atlPatchSize = ones(1, 3) * 9; 
 atlLoc = LOC_VENTRICLE_EDGE; %LOC_VENTRICLE_EDGE; % LOC_LEFT_CORTEX+10; %LOC_VENTRICLE_EDGE; %LOC_LEFT_CORTEX;
-atlPatchSize = ones(1, 3) * 5; 
-atlLoc = [20, 25, 35];
+%atlPatchSize = ones(1, 3) * 5; 
+%atlLoc = [20, 25, 35];
 gmmK = 5; % 5 good for ventricle, 25 for cortex?
 crmethod = 'inverse'; % 'forward', 'inverse'
 regVal = 1e-4; % regulaization to the diagonal of subjSigma, if using method forward
 reconSubj = 7; %1, 3
-patchColPad = ones(1, 3) * 1;
+patchColPad = ones(1, 3) * 2;
 
 % train and test datasets
 traindataset = 'buckner';
@@ -29,7 +29,7 @@ subvolSize = atlPatchSize + 5;
 
 % modalities
 ds = 5;
-us = 2;
+us = 5;
 isoSubjInAtlMod = sprintf('brainIso2Ds%dUs%dsizeReg', ds, us);
 dsSubjInAtlMod = sprintf('brainDs%dUs%dReg', ds, us);
 dsSubjInAtlMaskMod = sprintf('brainDs%dUs%dRegMask', ds, us);
@@ -96,9 +96,11 @@ W = max(W, 0.000001);
 
 fn3 = @(w) diag((-log(w))) * Adj * diag((-log(w))) * 0.0006;
 
-wg = wgmm.fit(X0, W, gmmK, 'replicates', 2, 'model4fn', fn3); % ! with defaults set to model 4.
+% wg = wgmm.fit(X0, W, gmmK, 'replicates', 2, 'model4fn', fn3); % ! with defaults set to model 4.
+wg = wgmm.fit(X0, W, gmmK, 'replicates', 3, 'updateMethod', 'model5', 'model4fn', fn3);
 [~, gammank, Xhat1] = wg.estep(X0, W);
 xhaterr1 = msd(Xt, Xhat1, 2);
+
 
 % see how the estep behaves given the right mstep
 wg2 = wgmm(gmmIso.mu, gmmIso.sigma, gmmIso.pi); % ! with defaults set to model 4.

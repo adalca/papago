@@ -4,8 +4,11 @@ setup
 %% parameters
 atlPatchSize = ones(1, 3) * 9;  
 atlLoc = LOC_VENTRICLE_EDGE; %LOC_VENTRICLE_EDGE; % LOC_LEFT_CORTEX+10; %LOC_VENTRICLE_EDGE; %LOC_LEFT_CORTEX;
-atlLoc = [52,43,34];
-atlLoc = [67,75,89]; % midsaggital
+% atlLoc = [52,43,34]; % unsure -- perhaps cerebellum?
+% atlLoc = [67,75,89]; % midsaggital ds5us5
+% atlLoc = [60,70,85]; % close to midsaggital ds5us5
+atlLoc = [61,64,35]; % cerebellum edge --> interesting results.
+atlLoc = [74,107,92]; % frontal edge of ventricle.
 
 % atlPatchSize = ones(1, 3) * 6; 
 % atlLoc = [69, 51, 43]; % scale 3
@@ -14,11 +17,14 @@ atlLoc = [67,75,89]; % midsaggital
 % atlPatchSize = ones(1, 3) * 5;
 % atlLoc = [20, 25, 35];
 % atlLoc = [22, 20, 20]*2;
+% atlLoc = [24,24,13]; % cerebellum edge --> interesting results.
+
+
 
 gmmK = 5; % 5 good for ventricle, 25 for cortex?
 crmethod = 'inverse'; % 'forward', 'inverse'
 regVal = 1e-4; % regulaization to the diagonal of subjSigma, if using method forward
-reconSubj = 7; %1, 3
+reconSubj = 1; %1, 3, 7
 patchColPad = ones(1, 3) * 2;
 
 % train and test datasets
@@ -90,12 +96,16 @@ subjLoc2AtlSpace = tform2cor3d(tform, size(dsSubjVol), subjDims, atlVolSize, atl
 atlLoc2SubjSpace = tform2cor3d(tform, size(dsSubjVol), subjDims, atlVolSize, atlDims, 'backward');
 extraReconArg = ifelse(strcmp(crmethod, 'inverse'), subjLoc2AtlSpace, regVal);
 
+save(sprintf('D:/Dropbox (MIT)/Research/patchSynthesis/output/Thesis/us%dloc[%d_%d_%d]', us, atlLoc), ...
+    'bucknerIsoPatchCol', 'bucknerDsPatchCol', 'bucknerDsMaskPatchCol');
+
 %% learn a gmm
 gmmopt = statset('Display', 'iter', 'MaxIter', 20, 'TolFun', 0.001);
 
 % compute the gaussian mixture model. TODO: should use wgmmfit with model0
 tic
 X = bsxfun(@minus, bucknerIsoPatchCol, mean(bucknerIsoPatchCol, 2));
+X = bucknerIsoPatchCol;
 gmdistIso = fitgmdist(X, gmmK, 'regularizationValue', regVal, 'replicates', 3, 'Options', gmmopt);
 fprintf('gmm took %3.3f sec\n', toc);
 gmmIso = wgmm.gmdist2wgmm(gmdistIso);
@@ -103,12 +113,139 @@ gmmIso = wgmm.gmdist2wgmm(gmdistIso);
 isopost = gmdistIso.posterior(X);
 [~, mi] = max(isopost, [], 2);
 
-%% D models
-dfn = @(w) diag((w<0.5)*1000000000);
-dfn = @(w) diag(-log(w+eps)*100000000);
-dfn = @(w) diag(0.0001*(exp(-10*(w-1)) - 0.99));
+%% try ECM
+% assuming cluster assignment from iso.
+ecmiter = 5;
 
-%% 
+threshold = 0.5;
+nSampl = 5000;
+clear sigmast meanst sigmas0 means0 sigmas means means_iso sigmas_iso
+for k = 1:gmmK
+    kidx = mi == k;
+    
+    % get isotropic data
+    Xorig = bucknerIsoPatchCol(kidx, :); 
+    X0orig = bucknerDsPatchCol(kidx, :); 
+    W = bucknerDsMaskPatchCol(kidx, :);
+    
+    % sample the data.
+    f = find(kidx);
+    if numel(f) > nSampl
+        r = randsample(numel(f), nSampl);
+        X0orig = X0orig(r, :);
+        W = W(r, :);
+        Xorig = Xorig(r, :);
+    end
+    
+    % patch-wise normalize data.
+    X = bsxfun(@minus, Xorig, mean(Xorig, 2));
+    X0 = bsxfun(@minus, X0orig, mean(X0orig, 2));
+    
+    % basic stats from iso and ds data
+    sigmast(:,:,k) = cov(X); meanst(k, :) = mean(X);    
+    sigmas0(:,:,k) = cov(X0); means0(k, :) = mean(X0);
+    
+    % set up downsampled data with nans in any region with W < thr
+    X0(W < threshold) = nan;
+    
+    % estimate mean and sigmas with ECM algorithm.
+    tic;
+    [means(k, :), sigmas(:,:,k), Z] = ecmnmlex(X0, 'twostage', ecmiter, 0.001); 
+    fprintf('cluster %d done in %5.3fs\n', k, toc);
+
+    tic;
+    [meanspca(k, :), sigmaspca(:,:,k)] = ecmnmlex(X0, 'twostage', ecmiter, 0.001, [], [], true); 
+    fprintf('ml-pca cluster %d done in %5.3fs\n', k, toc);
+    
+    tic;
+    X(W < threshold) = nan;
+    [means_iso(k, :), sigmas_iso(:,:,k)] = ecmnmlex(X, 'twostage', ecmiter, 0.001); 
+    fprintf('cluster %d done in %5.3fs\n', k, toc);
+    
+    tic;
+    X = Xorig;
+    X(W < threshold) = nan;
+    [means_iso_nonmean(k, :), sigmas_iso_nonmean(:,:,k), Zout{k}] = ecmnmlex(X, 'twostage', ecmiter, 0.001); 
+    warning('this is a **very** ugly hack...');
+    means_iso_nonmean(k,:) = mean(bsxfun(@minus, Zout{k}, mean(Zout{k}, 2))); 
+    sigmas_iso_nonmean(:,:,k) = cov(bsxfun(@minus, Zout{k}, mean(Zout{k}, 2)));
+    fprintf('cluster %d done in %5.3fs\n', k, toc);
+    
+    tic;
+    X0 = X0orig;
+    X0(W < threshold) = nan;
+    [means_ds_nonmean(k, :), sigmas_ds_nonmean(:,:,k), ZoutDs{k}] = ecmnmlex(X0, 'twostage', ecmiter, 0.001); 
+    warning('this is a **very** ugly hack...');
+    means_ds_nonmean(k,:) = mean(bsxfun(@minus, ZoutDs{k}, mean(ZoutDs{k}, 2))); 
+    sigmas_ds_nonmean(:,:,k) = cov(bsxfun(@minus, ZoutDs{k}, mean(ZoutDs{k}, 2)));
+    fprintf('cluster %d done in %5.3fs\n', k, toc);
+    
+    tic;
+    X0 = X0orig;
+    c = cov(X0);
+    X0(W < threshold) = nan;
+    [means_ds_nonmean(k, :), sigmas_ds_nonmean(:,:,k), ZoutDs{k}] = ecmnmlex(X0, 'twostage', ecmiter, 0.001); 
+    warning('this is a **very** ugly hack...');
+    means_ds_nonmean(k,:) = mean(bsxfun(@minus, ZoutDs{k}, mean(ZoutDs{k}, 2))); 
+    sigmas_ds_nonmean(:,:,k) = cov(bsxfun(@minus, ZoutDs{k}, mean(ZoutDs{k}, 2)));
+    fprintf('cluster %d done in %5.3fs\n', k, toc);
+
+%     imagesc([sigmas_iso(:,:,k), wgs{k}.sigma(:,:,1), sigmas_iso(:,:,k) - wgs{k}.sigma(:,:,1)])
+%     drawnow;
+end
+
+
+[qselgmmIso, ~, ~] = papago.subvolRecon(gmmIso, subvolLoc, subvolSize, atlPatchSize, crmethod, keepr, ...
+    dsSubjInAtlNii.img, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArg);
+
+
+wgtpca = wgmm(meanspca, sigmaspca + repmat(eye(size(X,2))*0.00001, [1,1,gmmK]), hist(mi, 1:gmmK)./sum(mi));
+[qselpca, reconLoc, cntvol] = papago.subvolRecon(wgtpca, subvolLoc, subvolSize, atlPatchSize, crmethod, keepr, ...
+    dsSubjInAtlNii.img, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArg);
+
+wgt = wgmm(means, sigmas + repmat(eye(size(X,2))*0.00001, [1,1,gmmK]), hist(mi, 1:gmmK)./sum(mi));
+[qsel, reconLoc, cntvol] = papago.subvolRecon(wgt, subvolLoc, subvolSize, atlPatchSize, crmethod, keepr, ...
+    dsSubjInAtlNii.img, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArg);
+
+wg_iso = wgmm(means_iso, sigmas_iso + repmat(eye(size(X,2))*0.00001, [1,1,gmmK]), hist(mi, 1:gmmK)./sum(mi));
+[quiltedSubvol_iso, reconLoc, cntvol] = papago.subvolRecon(wg_iso, subvolLoc, subvolSize, atlPatchSize, crmethod, keepr, ...
+    dsSubjInAtlNii.img, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArg);
+
+wg_ds_nonmean = wgmm(means_ds_nonmean, sigmas_ds_nonmean + repmat(eye(size(X,2))*0.00001, [1,1,gmmK]), hist(mi, 1:gmmK)./sum(mi));
+[quiltedSubvol_ds_nonmean, reconLoc, cntvol] = papago.subvolRecon(wg_ds_nonmean, subvolLoc, subvolSize, atlPatchSize, crmethod, keepr, ...
+    dsSubjInAtlNii.img, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArg);
+
+
+wg_iso_nonmean = wgmm(means_iso_nonmean, sigmas_iso_nonmean + repmat(eye(size(X,2))*0.00001, [1,1,gmmK]), hist(mi, 1:gmmK)./sum(mi));
+[quiltedSubvol_iso_nonmean, reconLoc, cntvol] = papago.subvolRecon(wg_iso_nonmean, subvolLoc, subvolSize, atlPatchSize, crmethod, keepr, ...
+    dsSubjInAtlNii.img, dsSubjInAtlMaskVol, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, extraReconArg);
+
+
+isoSubjVol = testmd.loadVolume(isoSubjMod, reconSubj);
+cropIsoSubjVol = cropVolume(isoSubjVol, reconLoc, reconLoc + size(qsel) - 1); 
+cropIsoSubjVol(isnan(qsel)) = nan;
+
+% get linearly-interpolated data
+dsSubjVolWNans = dsSubjVol;
+cropDsSubjVolWNans = cropVolume(dsSubjVolWNans, reconLoc, reconLoc + size(qsel) - 1); 
+cropDsSubjVolWNans(isnan(qsel)) = nan;
+
+% get subject weight
+subjWeightVolWNans = dsSubjWeightVol*1;
+cropSubjWeightVolWNans = cropVolume(subjWeightVolWNans, reconLoc, reconLoc + size(qsel) - 1); 
+cropSubjWeightVolWNans(isnan(qsel)) = nan;
+
+% view3Dopt(cropIsoSubjVol, cropDsSubjVolWNans, cropSubjWeightVolWNans, quiltedSubvol_iso, qsel, qselpca);
+
+
+
+view3Dopt(cropIsoSubjVol, cropDsSubjVolWNans, quiltedSubvol_iso, ...
+    quiltedSubvol_iso_nonmean, qsel, quiltedSubvol_ds_nonmean);
+
+error('done!');
+
+
+%%
 % load('D:\Dropbox (MIT)\Research\patchSynthesis\adrianpatches2');
 dsPatches = bucknerDsPatchCol;
 wtPatches = bucknerDsMaskPatchCol;
