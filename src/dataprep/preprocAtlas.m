@@ -46,9 +46,9 @@ function [orig, proc] = preprocAtlas(atlType, genPath, procPath, dsAmounts, inte
     end
 
     %% resample (all) atlases to match downsample + upsample process 
-    dsusproc(dsAmounts, proc, 'ATLAS');
-    dsusproc(dsAmounts, proc, 'BRAIN');
-    dsusproc(dsAmounts, proc, 'SEG');
+    dsusproc(dsAmounts, proc, 'ATLAS', 'linear');
+    dsusproc(dsAmounts, proc, 'BRAIN', 'linear');
+    dsusproc(dsAmounts, proc, 'SEG', 'nearest');
     
     %% save
     atlMods = proc;
@@ -56,7 +56,7 @@ function [orig, proc] = preprocAtlas(atlType, genPath, procPath, dsAmounts, inte
 
 end
 
-function dsusproc(dsAmounts, proc, type) 
+function dsusproc(dsAmounts, proc, type, interpMethod) 
     brainnii = loadNii(proc.(type));
     brainvol = brainnii.img;
 
@@ -65,7 +65,7 @@ function dsusproc(dsAmounts, proc, type)
 
             % downsample atlas nii
             sz = round(size(brainvol) ./ s * u);
-            vol = volresize(brainvol, sz);
+            vol = volresize(brainvol, sz, interpMethod);
             sunii = make_nii(vol);
             sunii.hdr.dime.pixdim(2:4) = brainnii.hdr.dime.pixdim(2:4) ./ u * s;
 
