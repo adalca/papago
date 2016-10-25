@@ -1,7 +1,11 @@
-function [ll, gammank, varargout] = estep(wgmm, X, W)
-% e-step (posteriors)
+function ll = estep(wgmm, X, W)
+% e-step 
+%   expected
 
-    varargout = cell(nargout - 2, 1);
+    varargout = cell(0);
+    if strcmp(wgmm.logpUpdateMethod, 'model5')
+        varargout = cell(1);
+    end
 
     % get posterior
     [logpin, varargout{:}] = wgmm.logpost(X, W); % N x k
@@ -14,20 +18,22 @@ function [ll, gammank, varargout] = estep(wgmm, X, W)
     %       = exp(logpin - maxlogpin) / sum(exp(logpin - maxlogpin))
     maxlogpin = max(logpin, [], 2);
     top = exp(bsxfun(@minus, logpin, maxlogpin));
-    gammank = bsxfun(@rdivide, top, sum(top, 2));
     ll = sum(log(sum(top, 2)) + maxlogpin, 1);
+    
+    % compute expected cluster assignment
+    wgmm.expect.gammank = bsxfun(@rdivide, top, sum(top, 2));
+    assert(isclean(wgmm.expect.gammank));
     
     % TODO: only do this if have any sum(gammank, 2) == 0
     % Should change! should destory clusters that don''t have any support.
     % warning('estep: adding eps to gamma. TODO: Fix this!');
     % gammank = gammank + eps; 
     
-    if nargout > 2
-        p = bsxfun(@times, gammank, varargout{1});
-        varargout{1} = squeeze(sum(p, 2));
+    % for certain models, we have other useful E-step quantities
+    if strcmp(wgmm.logpUpdateMethod, 'model5')
+        wgmm.expect.Xk = varargout{1};
     end
     
     % check cleanliness of variable
-    assert(isclean(gammank));
     assert(isclean(ll));
 end
