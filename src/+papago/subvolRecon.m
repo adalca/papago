@@ -40,16 +40,17 @@ function [quiltedSubvol, minSubvolLoc, cntvol, modReconLocs, reconPatches] = ...
         % get the optimal cluster via posteriors
         logpost = log(gmm.pi) + logp(i, :);
         [~, optk] = sort(logpost, 'descend');
+        explogpost = exp(logpost(optk) - max(logpost(optk)));
         
         % reconstruct in subject space
         for k = 1:keepk
             atlMu = gmm.mu(optk(k), :)' + meanAtlPatch(i);
             atlSigma = gmm.sigma(:, :, optk(k));
-            [reconPatches{i, k}, reconLocs{i, k}, newSigmas{i,k}] = paffine.recon(atlMu, atlSigma, gatlLocs(i, :), ...
+            [reconPatches{i, k}, reconLocs{i, k}] = paffine.recon(atlMu, atlSigma, gatlLocs(i, :), ...
                 atlPatchSize, dsSubjVol, dsSubjWeightVol, atlLoc2SubjSpace, crmethod, extraReconArgs{:});
             
-            reconWeights{i, k} = reconPatches{i, k} * 0 + exp(logpost(optk(k)));
-            reconWeights{i, k} = reconPatches{i, k} * 0 + logpost(optk(k));
+            reconWeights{i, k} = reconPatches{i, k} * 0 + explogpost(optk(k));
+%             reconWeights{i, k} = reconPatches{i, k} * 0 + logpost(optk(k));
         end
         % reconPatches(i,:) = cellfunc(@(x) x + meanAtlPatch, reconPatches(i,:));
     end

@@ -10,7 +10,9 @@ function [logp, dsAtlPatchMeans] = subvolLogp(gmm, subvolLoc, subvolSize, atlPat
     % computed.
     dsAtlSubvol = cropVolume(dsSubjInAtlVol, subvolLoc, subvolLoc + subvolSize - 1);
     dsAtlPatches = patchlib.vol2lib(dsAtlSubvol, atlPatchSize);
-    dsAtlPatchMeans = mean(dsAtlPatches, 2);
+    % dsAtlPatchMeans = mean(dsAtlPatches, 2);
+    dsAtlPatchMeans = zeros(size(dsAtlPatches, 1), 1);
+    warning('subtractMean forced FALSE!. Fix this elegantly!');
     dsAtlPatches = bsxfun(@minus, dsAtlPatches, dsAtlPatchMeans);
     
     dsAtlMaskSubvol = cropVolume(dsSubjInAtlMaskVol, subvolLoc, subvolLoc + subvolSize - 1);
@@ -29,4 +31,19 @@ function [logp, dsAtlPatchMeans] = subvolLogp(gmm, subvolLoc, subvolSize, atlPat
         atlpatchessel = dsAtlPatches .* dsAtlMaskPatches;
         logp(:, k) = logmvnpdf(atlpatchessel, atlmusel, atlSigma);
     end
+    
+%     warning('New logp estimation!!')
+%     logp = zeros(size(dsAtlPatches, 1), K);
+%     for k = 1:K
+%         atlMu = gmm.mu(k, :);
+%         atlSigma = gmm.sigma(:, :, k);
+%         
+%         for i = 1:size(dsAtlPatches, 1)
+%             idx = dsAtlMaskPatches(i, :) > 0.5;
+%             atlmusel = atlMu(idx);
+%             atlSigmasel = atlSigma(idx, idx);
+%             atlpatchessel = dsAtlPatches(i, idx);
+%             logp(i, k) = logmvnpdf(atlpatchessel, atlmusel, atlSigmasel);
+%         end
+%     end
 end
