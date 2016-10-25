@@ -149,8 +149,8 @@ function [logpin, varargout] = logpost(wgmm, X, W)
             end
             assert(isclean(logpin), 'log(pi*n) is unclean');
             
-        case 'model4'
-            % compute gammank. This will be slow since we have to invert for * each * subject. 
+        case {'model4', 'model5'}
+            % compute gammank. This will be slow since we have to invert for each * subject. 
             % perhaps we could approximate it?
             % also compute mu^r_nk
             logpin = zeros(N, K);

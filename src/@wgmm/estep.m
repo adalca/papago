@@ -1,13 +1,20 @@
-function ll = estep(wgmm, X, W)
+function [ll, gammank, varargout] = estep(wgmm, X, W)
 % e-step 
-%   expected
+%
+% since this is a mixture model, most model variants will include an update of cluster membership
+% probabilities, usually indicated by a variable gamma. They are usually some form of 
+%   gamma <-- p(clust) * p(data|clust) / sum_clust(p(clust)*p(data|clust).
+% where the data includes some weighting aspect.
+%
+% depending on the model, the e-step might include other expectation updates. 
 
     varargout = cell(0);
     if strcmp(wgmm.logpUpdateMethod, 'model5')
         varargout = cell(1);
     end
 
-    % get posterior
+    % get (unnormalized) posterior
+    % this is log( p(clust) * p(data|clust) )
     [logpin, varargout{:}] = wgmm.logpost(X, W); % N x k
     
     % to void overflow, need to subtract the max in log space. so 
