@@ -1,7 +1,12 @@
 function [subvolR, srcMask, tgtMask, srcInd, tgtInd, tgtWeight] = ...
-    vol2subvolInterpmat(R, srcLoc2tgtSpace, tgtSize, srcSubvolLoc, srcSubvolSize)
+    vol2subvolInterpmat(R, srcLoc2tgtSpace, tgtSize, srcSubvolLoc, srcSubvolSize, thr)
 % R src --> tgt ===> R is |tgt| x |src|
 
+
+    if nargin < 6
+        % warning('this 0.99 threshold is just emperically set right now...'); 
+        thr = 0.99;
+    end
     
 
     % prepare source indeces;
@@ -17,12 +22,15 @@ function [subvolR, srcMask, tgtMask, srcInd, tgtInd, tgtWeight] = ...
     % extract the right region of the R matrix
     subvolR = R(tgtInd, srcInd);
     
+    % create the mask of the tgt patch
+    % new code
+    tgtWeight = reshape(subvolR*ones(numel(srcInd),1), size(tgtInd)) ;
+    % old code
     % create the mask of the tgt patch. we do this by forward propogating the target patch and
     % seeing if when you invert the process it returns a value smaller than the original value (in
     % which case it was missing some information from pixels not included)
-%     warning('this 0.999 threshold is just emperically set right now...'); 
-    tgtWeight = reshape(subvolR*subvolR'*ones(numel(tgtInd),1), size(tgtInd)) ;
-    tgtMask = tgtWeight > 0.99; 
+    % >> tgtWeight = reshape(subvolR*subvolR'*ones(numel(tgtInd),1), size(tgtInd)) ;
+    tgtMask = tgtWeight > thr; 
     
     % create the mask of the src patch
     srcMask = ones(size(srcInd)); 
