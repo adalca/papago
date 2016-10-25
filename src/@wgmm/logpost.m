@@ -1,4 +1,4 @@
-function [logpin, varargout] = logpost(gmm, X, W)
+function [logpin, varargout] = logpost(wgmm, X, W)
 % compute log posterior
 %   p(params|x) = p(params) * p(x|params) = pi * N(X; mu, owowt .* sigma)
 %   logpin (log pi n) is N x K
@@ -6,13 +6,13 @@ function [logpin, varargout] = logpost(gmm, X, W)
 
     % prepare convenient variables
     [N, D] = size(X);    
-    K = size(gmm.mu, 1);
+    K = size(wgmm.mu, 1);
     varargout = {};
     
-    switch gmm.logpUpdateMethod
+    switch wgmm.logpUpdateMethod
         case 'model0' % no weights
              
-            logpin = bsxfun(@plus, log(gmm.pi), wgmm.logmvnpdf(X, gmm.mu, gmm.sigma));
+            logpin = bsxfun(@plus, log(wgmm.pi), wgmm.logmvnpdf(X, wgmm.mu, wgmm.sigma));
             assert(isclean(logpin), 'log(pi*n) is unclean');
         
         case 'model1-memsafe'
@@ -23,36 +23,36 @@ function [logpin, varargout] = logpost(gmm, X, W)
             for k = 1:K
 
                 % first, build owowt
-                if isempty(gmm.logdetow)
+                if isempty(wgmm.logdetow)
                     % simple and fast. 
                     % log(det(1/D)) = log(\prod(1/D_ii)) = sum(log(1/D_ii)) = sum(-log(D_ii))
-                    gmm.logdetow = sum(-log(W), 2); 
+                    wgmm.logdetow = sum(-log(W), 2); 
 
                     % alternative computation, but this involves a lot of multiplications
-                    if gmm.debug
-                        gmm.logdetow = zeros(N, 1);
+                    if wgmm.debug
+                        wgmm.logdetow = zeros(N, 1);
                         for i = 1:N
-                            gmm.logdetow(i) = wgmm.logdet(diag(1./W(i, :)));
+                            wgmm.logdetow(i) = wgmm.logdet(diag(1./W(i, :)));
                         end
                     end
-                    assert(isclean(gmm.logdetow), 'logdetow is unclean');
+                    assert(isclean(wgmm.logdetow), 'logdetow is unclean');
                 end
 
-                sigma = gmm.sigma(:,:,k);
+                sigma = wgmm.sigma(:,:,k);
                 Xw = W .* X;
-                mu = bsxfun(@times, W, gmm.mu(k, :));
-                logpin(:, k) = log(gmm.pi(k)) + wgmm.logmvnpdf(Xw, mu, sigma) - gmm.logdetow;
+                mu = bsxfun(@times, W, wgmm.mu(k, :));
+                logpin(:, k) = log(wgmm.pi(k)) + wgmm.logmvnpdf(Xw, mu, sigma) - wgmm.logdetow;
             end
             assert(isclean(logpin), 'log(pi*n) is unclean');
 
             % compute logpost in other methods and test
-            if gmm.debug
+            if wgmm.debug
 
                 % passing sigma and it needs inverting on the fly. This is very slow.       
                 logpinm1 = zeros(N, K);
                 for k = 1:K
-                    sigma = wgmm.iwAiw(1./gmm.W, gmm.sigma(:,:,k));
-                    logpinm1(:, k) = log(gmm.pi(k)) + wgmm.logmvnpdf(gmm.X, gmm.mu(k, :), sigma);
+                    sigma = wgmm.iwAiw(1./wgmm.W, wgmm.sigma(:,:,k));
+                    logpinm1(:, k) = log(wgmm.pi(k)) + wgmm.logmvnpdf(wgmm.X, wgmm.mu(k, :), sigma);
                 end
                 fprintf(2, 'debug: first test method max diff %f\n', max(abs(logpin(:) - logpinm1(:))));
 
@@ -60,9 +60,9 @@ function [logpin, varargout] = logpost(gmm, X, W)
                 % multiply in the W vectors appropriately.
                 logpinm2 = zeros(N, K);
                 for k = 1:K
-                    sigma = wgmm.iwAiw(1./gmm.W, gmm.sigma(:,:,k));
-                    sigmainv = wgmm.iwAiw(gmm.W, gmm.sigmainv(:,:,k));
-                    logpinm2(:, k) = log(gmm.pi(k)) + wgmm.logmvnpdf(gmm.X, gmm.mu(k, :), sigma, sigmainv);
+                    sigma = wgmm.iwAiw(1./wgmm.W, wgmm.sigma(:,:,k));
+                    sigmainv = wgmm.iwAiw(wgmm.W, wgmm.sigmainv(:,:,k));
+                    logpinm2(:, k) = log(wgmm.pi(k)) + wgmm.logmvnpdf(wgmm.X, wgmm.mu(k, :), sigma, sigmainv);
                 end 
                 fprintf(2, 'debug: second test method max diff %f\n', max(abs(logpin(:) - logpinm2(:))));
             end
@@ -71,19 +71,19 @@ function [logpin, varargout] = logpost(gmm, X, W)
             logpin = zeros(N, K);            
             
             % first, build logdet(diag(W(i, :)))
-            if isempty(gmm.logdetw)
+            if isempty(wgmm.logdetw)
                 % simple and fast.
                 % log(det(D)) = log(\prod(D_ii)) = sum(log(D_ii)) = sum(log(D_ii))
-                gmm.logdetw = sum(log(W), 2);
+                wgmm.logdetw = sum(log(W), 2);
                 
                 % alternative computation, but this involves a lot of multiplications
-                if gmm.debug
-                    gmm.logdetw = zeros(N, 1);
+                if wgmm.debug
+                    wgmm.logdetw = zeros(N, 1);
                     for i = 1:N
-                        gmm.logdetw(i) = gmm.logdet(diag(W(i, :)));
+                        wgmm.logdetw(i) = wgmm.logdet(diag(W(i, :)));
                     end
                 end
-                assert(isclean(gmm.logdetw), 'logdetw is unclean');
+                assert(isclean(wgmm.logdetw), 'logdetw is unclean');
             end
             
             for k = 1:K
@@ -105,9 +105,9 @@ function [logpin, varargout] = logpost(gmm, X, W)
                     'Currently: Option 1'], ...
                     'SingleWarn', true);
                 Xw = X .* W;
-                mu = bsxfun(@times, W, gmm.mu(k, :)) ;
+                mu = bsxfun(@times, W, wgmm.mu(k, :)) ;
                 if nargin == 1
-                    logdetw = gmm.logdetw;
+                    logdetw = wgmm.logdetw;
                     
                 else
                     if all(W(:) == 1)
@@ -124,10 +124,10 @@ function [logpin, varargout] = logpost(gmm, X, W)
                 % Note: passing in the inverse sigma is much faster, but might lose some accuracy.
                 % from our tests, at least on usRate = 2, patchSize of 5^3, the maximum error is ~1e-10.
 
-                if ~isempty(gmm.sigmainv)
-                    logpin(:, k) = log(gmm.pi(k)) + logmvnpdf(Xw, mu, gmm.sigma(:,:,k), gmm.sigmainv(:,:,k)) - logdetw(:);
+                if ~isempty(wgmm.sigmainv)
+                    logpin(:, k) = log(wgmm.pi(k)) + logmvnpdf(Xw, mu, wgmm.sigma(:,:,k), wgmm.sigmainv(:,:,k)) - logdetw(:);
                 else
-                    logpin(:, k) = log(gmm.pi(k)) + logmvnpdf(Xw, mu, gmm.sigma(:,:,k)) - logdetw(:);
+                    logpin(:, k) = log(wgmm.pi(k)) + logmvnpdf(Xw, mu, wgmm.sigma(:,:,k)) - logdetw(:);
                 end
                     
 
@@ -149,33 +149,65 @@ function [logpin, varargout] = logpost(gmm, X, W)
             end
             assert(isclean(logpin), 'log(pi*n) is unclean');
             
-        case {'model4', 'model5'}
-            % compute gammank. This will be low since we have to invert for 8each * subject. 
+        case 'model4'
+            % compute gammank. This will be slow since we have to invert for * each * subject. 
             % perhaps we could approximate it?
             % also compute mu^r_nk
             logpin = zeros(N, K);
-            murnk = zeros(N, K, D);
             for k = 1:K
-                muk = gmm.mu(k, :);
-                sigmak = gmm.sigma(:,:,k);
+                muk = wgmm.mu(k, :);
+                sigmak = wgmm.sigma(:,:,k);
                 
                 for i = 1:N
                     w = W(i, :);
                     x = X(i, :);
                     
                     % sigmas
-                    Di = gmm.model4fn(w);
+                    Di = wgmm.model4fn(w);
                     sigma = sigmak + Di;
                     
                     % consider pre-computing sigma inverse. But that's slow an dimprecise. 
                     % sigmainv = inv(sigma);
-                    logpin(i, k) = log(gmm.pi(k)) + wgmm.logmvnpdf(x, muk, sigma);                    
-                    murnk(i, k, :) = reshape((sigmak / sigma) * (x - muk)' + muk', [1, 1, D]);
+                    logpin(i, k) = log(wgmm.pi(k)) + wgmm.logmvnpdf(x, muk, sigma);                    
                 end
             end
-            varargout{1} = murnk;
+            assert(isclean(logpin), 'log(pi*n) is unclean');                    
+            
+        case 'model5'
+            
+            % compute gammank. This will be slow since we have to invert for * each * subject. 
+            % perhaps we could approximate it?
+            % also compute mu^r_nk
+            logpin = zeros(N, K);
+            murnk = zeros(N, K, D); % will get permuted to N-D-K
+            for k = 1:K
+                muk = wgmm.mu(k, :);
+                sigmak = wgmm.sigma(:,:,k);
+                
+                for i = 1:N
+                    w = W(i, :);
+                    x = X(i, :);
+                    
+                    % sigmas
+                    Di = wgmm.model4fn(w);
+                    sigma = sigmak + Di;
+                    
+                    % consider pre-computing sigma inverse. But that's slow an dimprecise. 
+                    % sigmainv = inv(sigma);
+%                     if K > 1
+                        logpin(i, k) = log(wgmm.pi(k)) + wgmm.logmvnpdf(x, muk, sigma);  
+%                     else
+%                         logpin(i, k) = 1;
+%                     end
+                    
+                    % z = (sigmak / sigma) * (x - muk)' + muk';
+                    z = sigmak * (sigma \ (x - muk)') + muk'; % faster
+                    murnk(i, k, :) = reshape(z, [1, 1, D]);
+                end 
+            end
+            varargout{1} = permute(murnk, [1, 3, 2]);
             assert(isclean(logpin), 'log(pi*n) is unclean');
-            assert(isclean(murnk), 'log(pi*n) is unclean');
+            assert(isclean(murnk), 'murnk is unclean');
             
         otherwise
             error('unknown logp method');
