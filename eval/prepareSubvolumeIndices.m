@@ -1,12 +1,16 @@
 % prepareSubvolumeIndices
 PATH = 'D:/Dropbox (MIT)/Research/patchSynthesis/data/buckner/subvols/wholevol/';
-gridSubFilename = [PATH, 'grididx2loc.txt'];
-selSubFilename = [PATH, 'selidx2loc.txt'];
+gridSubFilename = [PATH, 'grididx2loc_ds7us5.txt'];
+selSubFilename = [PATH, 'selidx2loc_ds7us5.txt'];
 gridSpacing = ones(1,3)*7;
+ds = 7;
+us = 5;
 
 % get
 atlsegnii = loadNii([SYNTHESIS_DATA_PATH, 'buckner/atlases/wholevol/buckner61_seg_proc.nii.gz']);
 atlnii = loadNii([SYNTHESIS_DATA_PATH, 'buckner/atlases/wholevol/buckner61_proc.nii.gz']);
+atlsegnii = loadNii([SYNTHESIS_DATA_PATH, 'buckner/atlases/wholevol/buckner61_seg_proc_ds7_us5.nii.gz']);
+atlnii = loadNii([SYNTHESIS_DATA_PATH, 'buckner/atlases/wholevol/buckner61_brain_proc_ds7_us5.nii.gz']);
 [selidx, grididx] = usefulSubvolumes(atlnii, atlsegnii, 5, ones(1,3)*41, 5, ones(1,3)*17, gridSpacing);
 
 %% save idx
@@ -31,7 +35,7 @@ fclose(fid);
 
 
 %% closest to center
-volLoc = [116, 104, 130];
+volLoc = [116, 104, 130]*us/ds;
 nTop = 7^3;
 
 
@@ -57,3 +61,8 @@ fclose(fid);
 dots = zeros(size(atlnii.img));
 dots(selidx(si(1:nTop))) = 1;
 view3Dopt(atlnii.img + dots);
+
+%%
+dots = zeros(size(atlnii.img));
+dots(selidx) = selidx;
+view3Dopt(atlnii.img, dots);
