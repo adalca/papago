@@ -323,6 +323,10 @@ if nargout > 5
     rsltStruct.NumIter = itercount;
     rsltStruct.RMSResid = rmsResid;
     rsltStruct.nloglk = nloglk;
+    % avd change
+    % rsltStruct.nloglk_new = ppcax_incomplete_nlogl(Y, mu', W, v);
+    rsltStruct.nloglk_new = -inf;
+    fprintf('final convergence nloglk: %f\n', rsltStruct.nloglk_new);
 end
 
 smallLatent = latent < (max(size(Y))*eps(max(latent)));
