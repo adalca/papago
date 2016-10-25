@@ -5,9 +5,9 @@
 #
 # examples:
 # ./sgeProcessSubject.sh \
-#   /data/vision/polina/projects/stroke/work/patchSynthesis/data/ADNI_T1_baselines/proc/brain_pad10 \
+#   /data/vision/polina/projects/stroke/work/patchSynthesis/data/ADNI_T1_baselines/proc/wholevol \
 #   /data/vision/polina/projects/stroke/work/patchSynthesis/data/ADNI_T1_baselines/md/adalca_wholevol_restor_md_2016_03_16.mat \
-#   5 \
+#   7 \
 #   255 \
 #   /data/vision/polina/projects/stroke/work/patchSynthesis/data/ADNI_T1_baselines/atlases/wholevol/atlMods.mat \
 #   atlas \
@@ -61,12 +61,12 @@ do
   mkdir -p ${sgeopath}
   sge_par_o="--sge \"-o ${sgeopath}\""
   sge_par_e="--sge \"-e ${sgeopath}\""
-  sge_par_l="--sge \"-l mem_free=150G \""
+  sge_par_l="--sge \"-l mem_free=10G \""
   sgerunfile="${sgeopath}/processSubject_${subjid}.sh"
 
   # prepare sge run file
   cmd="${PROJECT_PATH}sge/qsub-run -c $sge_par_o $sge_par_e $sge_par_l ${lcmd} > ${sgerunfile}"
-  echo $cmd
+  # echo $cmd
   eval $cmd
 
   # run training
