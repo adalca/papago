@@ -27,6 +27,9 @@ classdef wgmm < handle
         % derivative properties, useful to have around, especially during fitting. 
         % This should be optional.
         sigmainv;
+        
+        % expectation and parameters.
+        expect;
     end
     
     properties (Hidden)
@@ -39,9 +42,9 @@ classdef wgmm < handle
         
         % Update parameters. 
         % Most of these available methods should get cleaned up after development.
-        covarUpdateMethod = 'model4exp';
-        muUpdateMethod = 'model0';
-        logpUpdateMethod = 'model4';
+        covarUpdateMethod = 'model5';
+        muUpdateMethod = 'model5';
+        logpUpdateMethod = 'model5';
         model4fn = @(w) diag((-log(w)).^ 2);
         
         covarReconMethod = 'greedy1';
@@ -82,9 +85,9 @@ classdef wgmm < handle
         
         % EM functions
         [logpin, varargout] = logpost(wg, varargin);
-        [ll, gammank, varargout] = estep(wg, X, W);
+        ll = estep(wg, X, W);
         ll = logp(wg, varargin);
-        wg = mstep(wg, X, W, K, gammank);
+        wg = mstep(wg, X, W, K);
         wg = init(wg, X, W, K, varargin);
         visualize(wg, varargin);
         [sampleX, ks] = sample(gmm, N, X, cidx);
@@ -101,7 +104,7 @@ classdef wgmm < handle
         logp = logmvnpdf(x, mu, sigma, sigmainv);
         
         % helper functions for computing and correcting sigma.
-        [sigma, sigmainv, sigmacore, sigmarecon, sigmamerge] = sigmafull(mu, X, W, K, gammank, mthods, opts, wg);
+        [sigma, sigmainv, sigmacore, sigmarecon, sigmamerge] = sigmafull(mu, X, W, K, mthods, opts, wg);
         sigmar = sigmarecon(sigma, wtw, method);
         sigma = sigmacore(mu, X, W, K, gammank, coremethod, coreargs, wg);
         sigma = sigmamerge(sigmac, sigmar, wtw, method, varargin);
