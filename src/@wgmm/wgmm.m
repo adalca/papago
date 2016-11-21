@@ -21,85 +21,90 @@ classdef wgmm < handle
     % pairing.
     
     properties
-        % main properties
-        mu;
-        sigma;
-        pi;
+        % wgmm options (controlled by the user)
+        %   model (struct) - a struct with model-specific parameters
+        %   model.name (chat) - the model used.
+        %   init (struct) - optional initialization arguments
+        %   init.method (char) - the initialization method
+        %   regularizationValue (double) - sigma regularizer
+        %   maxIter (int) - maximum number of iterations
+        %   replicates (int) - number of replicates to run
+        %   TolFun (double) - the stopping tolerance
+        %   verbose (logical) - whether to run debug methods
         
-        % derivative properties, useful to have around, especially during fitting. 
-        % This should be optional.
-        sigmainv;
+        %
+        %       sigmaopt (cell) - PROBABLY A MODEL-SPECIFIC OPT. ONLY NEC FOR MODEL3?
+        %       (regularizationWeight). 
+        %       covarMergeMethod ?
+        opts;   
+
+        % expectations (e-step updates)
+        % generally, cluster membership will be stored here.
+        expect; 
         
-        % expectation and parameters.
-        expect;
+        % parameters (m-step updates)
+        % usually, cluster mean (mu) and covariances (sigma) and prior (pi)
+        % but other model-specific parameters might be stored as well.
+        params; 
+        
+        % general statistics
+        stats;  
     end
     
     properties (Hidden)
         
-        % fitting parameters
-        initmethod = 'exemplar';
-        debug = false;
-        sigmareg = nan;
-        sigmaopt = {0};
-        
-        % Update parameters. 
-        % Most of these available methods should get cleaned up after development.
-        covarUpdateMethod = 'model5';
-        muUpdateMethod = 'model5';
-        logpUpdateMethod = 'model5';
-        model4fn = @(w) diag((-log(w)).^ 2);
-        
-        covarReconMethod = 'greedy1';
-        covarMergeMethod = 'wfact-mult-adapt'; % 'none'
-        
         % helpful implementation structures
-        logdetow; % log(det(diag((1./W)))); only needs to be computed once.
-        logdetw; % log(det(diag((W)))); only needs to be computed once.
+        mem;
+        % logdetow; % log(det(diag((1./W))));   only needs to be computed once.
+        % logdetw;  % log(det(diag((W))));      only needs to be computed once.
     end
     
     methods
-        % constructor
-        function gmm = wgmm(varargin)
-            if nargin >= 1, gmm.mu = varargin{1}; end
-            if nargin >= 2, gmm.sigma = varargin{2}; end
-            if nargin >= 3, gmm.pi = varargin{3}; end
-            if nargin >= 4, gmm.sigmainv = varargin{4}; end
-                
-            if nargin >= 3
-                assert(size(gmm.mu, 1) == size(gmm.sigma, 3));
-                assert(size(gmm.mu, 1) == numel(gmm.pi));
+        % constructor.
+        %   wg = wgmm(opts) initiate options
+        %   wg = wgmm(opts, params) include initial params
+        function wg = wgmm(opts, varargin)
+            if nargin >= 1
+                wg.opts = opts;
+            else
+                wg.opts = wgmm.optionDefaults;
+            end
+            
+            if nargin >= 2
+                wg.params = varargin{1}; 
+                assert(size(wg.params.mu, 1) == size(wg.params.sigma, 3));
+                assert(size(wg.params.mu, 1) == numel(wg.params.pi));
             end
         end
         
-        function print(wg)
-            s = '--- WGMM object:\n';
-            
-            s = sprintf('%soperating methods:', s);
-            s = sprintf('%s%30s:%s\n', s, 'initialization', wg.initmethod);
-            s = sprintf('%s%30s:%s\n', s, 'covariance update', wg.covarUpdateMethod);
-            s = sprintf('%s%30s:%s\n', s, 'mu update', wg.muUpdateMethod);
-            s = sprintf('%s%30s:%s\n', s, 'logp update', wg.logpUpdateMethod);
-            s = sprintf('%s%30s:%s\n', s, 'covariance reconstruction', wg.covarReconMethod);
-            s = sprintf('%s%30s:%s\n', s, 'covariance merge', wg.covarMergeMethod);
-            fprintf(s);
-            sys.structmemory(wg)
-        end
+        % general function
+        print(wg)
+        visualize(wg, varargin);
         
         % EM functions
-        [logpin, varargout] = logpost(wg, varargin);
-        ll = estep(wg, X, W);
+        logpin = logpost(wg, varargin);
+        [ll, expect, wg] = estep(wg, X, W);
         ll = logp(wg, varargin);
-        wg = mstep(wg, X, W, K);
+        params = mstep(wg, X, W, K);
         wg = init(wg, X, W, K, varargin);
-        visualize(wg, varargin);
         [sampleX, ks] = sample(gmm, N, X, cidx);
+        
+        
+        params = wgmm.mstepModel0(wgmm, data);
+        params = wgmm.mstepModel1(wgmm, data);
+        params = wgmm.mstepModel3(wgmm, data);
+        params = wgmm.mstepModel4exp(wgmm, data);
+        params = wgmm.mstepModel5(wgmm, data);
+        params = wgmm.mstepLatentSubspace(wgmm, data);
+        params = wgmm.mstepLatentMissing(wgmm, data);
+        params = wgmm.mstepLatentMissingR(wgmm, data);
     end
     
     methods (Static)
-        %% helper functions
+        opts = optionDefaults()
+        
+        % helper functions
         fwgmm = fit(X, W, K, varargin);
-        %s = iwAiw(W, A); % TODO: I'm not sure this is used anymore
-        %sxr = sx(X, S, dodebug); % TODO: I'm not sure this is used anymore
         
         % tools related to log multivariate pdf, specific to wgmm since we work with sigma being
         % DxDxK instead of the usual DxD or DxDxN 
@@ -118,8 +123,6 @@ classdef wgmm < handle
         compareMeans(gmms, patchSize, titles);
         compare(gmms, patchSize, gmmMethods, varargin);
         compareSigmas(gmms, titles); 
-        sm = model5exp(s, X, W, muk, dfn) 
-        
+        sm = model5exp(s, X, W, muk, dfn)  
     end
-    
 end

@@ -1,67 +1,70 @@
-function fwgmm = fit(X, W, K, varargin)
+function fwgmm = fit(data, varargin)
 % meant to be called from wgmmfit.
 
     % parse inputs
-    [X, W, K, opt] = parseInputs(X, W, K, varargin{:});
-    X0 = X;
-    
-    % go through different replicates. at each replicate, create a new wgmm object. Return the one
-    % with the best log likelihood.
-    
-    wgmms = cell(1, opt.replicates);
-    logliks = zeros(1, opt.replicates);
-    for r = 1:opt.replicates
+    [data, opts] = parseInputs(data, varargin{:});
 
-        % initialize wgmm settings
-        wg = wgmm();
-        if ~isempty(opt.updateMethod)
-            wg.covarUpdateMethod = opt.updateMethod;
-            wg.muUpdateMethod = opt.updateMethod;
-            wg.logpUpdateMethod = opt.updateMethod;
-        end
-        wg.sigmareg = opt.regularizationValue;
-        wg.sigmaopt = opt.regularizationWeight;
-        wg.covarMergeMethod = opt.covarMergeMethod;
-        wg.model4fn = opt.model4fn;
+    mastertic = tic;
+    
+    % go through different replicates. at each replicate, create a new wgmm object. 
+    % Return the one with the best log likelihood.
+    wgmms = cell(1, opts.replicates);
+    logliks = zeros(1, opts.replicates);
+    for r = 1:opts.replicates
+
+        % construct wgmm
+        wg = wgmm(opts);        
 
         % initialize fit
-        wg.initmethod = opt.initmethod;
-        wg.init(X, W, K, opt.initmethodArgs{:});
-        
-%         if strcmp(wg.logpUpdateMethod, 'model4')
-%             fprintf(2, 'wgmm.fit: Using hack Initialization heuristic where we randomly sample X from Xinit. Should Decide if we want this');
-%             for i = 1:size(X, 1)
-%                 X(i, :) = mvnrnd(X0(i, :), wg.model4fn(W(i,:)));
-%             end
-%         end            
+        wg.init(data, opts.init);
+        wg.stats(1).params = wg.params;
+        wg.opts.model
         
         % initialize counters
         llpchange = 1;
         ll = [];
         
         % First E step and ll
-        ll(1) = wg.estep(X, W);
+        %if ~isfield(wg.expect, 'gammank')
+        if opts.maxIter > 0
+            [ll(1), wg.expect] = wg.estep(data);
+        else 
+            ll = 0;
+           %ll(1) = wg.logp(data);
+        end
+        wg.stats(1).expect = wg.expect;
         
         % print inital ll
-        printiter(wg, opt, ll, r);
+        printiter(wg, opts, ll, r);
         
-        % iterate E-M
+        % Iterative E.M. updates
         ct = 1;
-        while (llpchange > opt.TolFun) && ct <= opt.maxIter
+        while (llpchange > opts.TolFun) && ct <= opts.maxIter
+            tic;
 
             % M step
-            wg.mstep(X, W, K);
-            
+            wg.params = wg.mstep(data);
+            wg.stats(ct+1).params = wg.params;
+
             % E step
-            ll(ct+1) = wg.estep(X, W);
+            [ll(ct+1), expect, wg] = wg.estep(data);
+            wg.expect = expect;
+            wg.stats(ct+1).expect = wg.expect;
+            
+            % add time stats
+            wg.stats(ct+1).toc = toc;
+            wg.stats(ct+1).ll = ll(ct+1);
 
             % check log likelihood
             sys.warnif(~(ll(ct+1) >= ll(ct)), sprintf('log lik went down in repl:%d iter:%d', r, ct));
-            llpchange = (ll(ct+1) - ll(ct)) ./ abs(ll(ct));
+            llpchange = abs(ll(ct+1) - ll(ct)) ./ abs(ll(ct));
 
             % update
-            printiter(wg, opt, ll, r);
+            printiter(wg, opts, ll, r);
             ct = ct + 1;
+            
+            % temp save.
+            % save(tempname, 'wg', '-v7.3');
         end
             
         % save update
@@ -69,7 +72,7 @@ function fwgmm = fit(X, W, K, varargin)
         logliks(r) = ll(end);
     end
     
-    if opt.verbose > 1, 
+    if opts.verbose > 1
         leg = arrayfunc(@(x) sprintf('replicate %d', x), 1:r);
         legend(leg);
     end
@@ -77,24 +80,72 @@ function fwgmm = fit(X, W, K, varargin)
     % get the best replicate
     [~, mi] = max(logliks);
     fwgmm = wgmms{mi};
+    
+    % add master toc
+    fwgmm.stats(end).mastertoc = toc(mastertic);
 end
 
-function printiter(wg, opt, ll, r)
+function [data, opts] = parseInputs(data, varargin)
+    % get defaults;
+    dopts = wgmm.optionDefaults();
+
+    % parse inputs
+    p = inputParser();
+    p.StructExpand = true;
+    
+    % data
+%     p.addRequired('X', @ismatrix);
+%     p.addRequired('W', @(w) ismatrix(w) && all(size(X) == size(w)));
+%     p.addRequired('K', @isscalar);    
+    p.addRequired('data', @isstruct);    
+    
+    % model options
+    p.addParameter('modelName', dopts.model.name, @ischar);
+    p.addParameter('modelArgs', dopts.model, @isstruct);
+    
+    % initialization
+    p.addParameter('init', dopts.init.method, @ischar); % see wgmminit(...) for options
+    p.addParameter('initArgs', dopts.init, @isstruct);
+    
+    % fitting options
+    p.addParameter('maxIter', dopts.maxIter, @isscalar);
+    p.addParameter('replicates', dopts.replicates, @isscalar);
+    p.addParameter('regularizationValue', dopts.regularizationValue, @isscalar)    
+    p.addParameter('TolFun', dopts.TolFun, @(x) isscalar(x) && x <= inf && x >= -inf);
+    p.addParameter('verbose', dopts.verbose, @isIntegerValue);
+    
+    % parse
+    p.parse(data, varargin{:});
+    
+    % copy
+    opts = p.Results;
+    opts = rmfield(opts, 'modelName');
+    opts = rmfield(opts, 'modelArgs');
+    opts.model = p.Results.modelArgs;
+    opts.model.name = p.Results.modelName;
+    opts = rmfield(opts, 'init');
+    opts = rmfield(opts, 'initArgs');
+    opts.init = p.Results.initArgs;
+    opts.init.method = p.Results.init;
+end
+
+function printiter(wg, opts, ll, r)
 % print information at an iteration
 
     ct = numel(ll) - 1;
 
     if ct == 0
-         if opt.verbose > 0
+         if opts.verbose > 0
              fprintf('\nreplicate %d\n', r);
              fprintf('%10s\t%10s\t%10s\n', 'iter', 'logp', 'percent change');
              fprintf('%10d\t%10f\t%10f\n', 0, ll(1), 1);
-         end        
+         end
+         
     else
         llpchange = (ll(ct+1) - ll(ct)) ./ abs(ll(ct));
 
 
-        if opt.verbose > 0
+        if opts.verbose > 0
             fprintf('%10d\t%10f\t%10f\n', ct, ll(ct+1), llpchange);
 
 %             if opt.verbose > 1
@@ -113,31 +164,31 @@ function printiter(wg, opt, ll, r)
     end
 end
 
-function [X, W, k, opt] = parseInputs(X, W, k, varargin)
-    % parse inputs
-    p = inputParser();
-    p.StructExpand = true;
-    
-    p.addRequired('X', @ismatrix);
-    p.addRequired('W', @(w) ismatrix(w) && all(size(X) == size(w)));
-    p.addRequired('K', @isscalar);    
-    
-    p.addParameter('maxIter', 10, @isscalar);
-    p.addParameter('replicates', 10, @isscalar);
-    p.addParameter('initmethod', 'exemplar', @ischar); % see wgmminit(...) for options
-    p.addParameter('initmethodArgs', {}, @iscell);
-    p.addParameter('updateMethod', '', @ischar);
-    
-    p.addParameter('regularizationValue', 1e-7, @isscalar)
-    p.addParameter('regularizationWeight', nan, @(x) isscalar(x) | iscell(x))
-    %p.addParameter('covarMergeMethod', 'wfact-mult-adapt', @ischar);
-    p.addParameter('covarMergeMethod', 'none', @ischar);
-    p.addParameter('TolFun', 0.01, @(x) isscalar(x) && x <= inf && x >= -inf);
-    p.addParameter('model4fn', @(w) diag((-log(w)).^ 2), @isfunc);
-    
-    p.addParameter('verbose', 2, @isIntegerValue);
-    p.addParameter('debug', false, @islogical);
-    
-    p.parse(X, W, k, varargin{:});
-    opt = p.Results;
-end
+% note: while transfering to new code, need to remember to deal with the following setting transfers
+% add defaults
+% initmethod = 'exemplar';
+% debug = false;
+% sigmareg = nan;
+% sigmaopt = {0};
+
+
+% covarUpdateMethod = 'model5';
+% muUpdateMethod = 'model5';
+% logpUpdateMethod = 'model5';
+% model4fn = @(w) diag((-log(w)).^ 2);
+% 
+% covarReconMethod = 'greedy1';
+% covarMergeMethod = 'wfact-mult-adapt'; % 'none'
+% 
+% if ~isempty(opt.updateMethod)
+% wg.covarUpdateMethod = opt.updateMethod;
+% wg.muUpdateMethod = opt.updateMethod;
+% wg.logpUpdateMethod = opt.updateMethod;
+% end
+% 
+% p.addParameter('regularizationWeight', nan, @(x) isscalar(x) | iscell(x))
+% %p.addParameter('covarMergeMethod', 'wfact-mult-adapt', @ischar);
+% p.addParameter('covarMergeMethod', 'none', @ischar);
+% 
+% p.addParameter('model4fn', @(w) diag((-log(w)).^ 2), @isfunc);
+% p.addParameter('debug', false, @islogical);
