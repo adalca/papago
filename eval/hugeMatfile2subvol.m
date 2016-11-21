@@ -1,7 +1,9 @@
 function [subvolume, nfo] = hugeMatfile2subvol(matfilefile, subvolLoc, subvolSize, subvolfile)
 % given a matfile which has the 4D variable 'volumes' (volsize x nSubjects)
 % extract the subvolumes at location subvolLoc, of size subvolSize, and save the subvolumes in
-% subvolfile. the subvolumes will be called 'subvolfile'
+% subvolfile. the subvolumes will be called 'subvolume'
+
+    narginchk(4, 6)
 
     m = matfile(matfilefile);
     

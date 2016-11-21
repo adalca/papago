@@ -1,5 +1,6 @@
 function prepHugeMatfileForVolumeSplitting(mdpath, mod, outmatfile)
 % mdpath = [SYNTHESIS_DATA_PATH, '/ADNI_T1_baselines/md/adalca_wholevol_restor_md_2016_03_06.mat']
+% mdpath = [SYNTHESIS_DATA_PATH, '/ADNI_T1_baselines/md/adalca_wholevol_restor_md_2016_11_12.mat']
 % mod = 'Ds5Us5RegMask'
 % outmatfile = '/data/vision/polina/projects/stroke/work/patchSynthesis/data/ADNI_T1_baselines/subvols/wholevol/mar12_2016/ADNI_T1_baselines_wholevol_Ds5Us5RegMask_volumes.mat'
 %
@@ -14,6 +15,7 @@ function prepHugeMatfileForVolumeSplitting(mdpath, mod, outmatfile)
     
     nSubjects = md.getNumSubjects();
     volIdx = find(arrayfun(@(v) sys.isfile(md.getModality(mod, v)), 1:nSubjects));
+    sids = md.sids(volIdx); %#ok<NASGU>
     fprintf('found %d/%d files\n', numel(volIdx),md.getNumSubjects());
     
     volume = md.loadVolume(mod, volIdx(1));
@@ -32,7 +34,7 @@ function prepHugeMatfileForVolumeSplitting(mdpath, mod, outmatfile)
     % save matfile
     tic;
     mkdir(fileparts(outmatfile));
-    save(outmatfile, 'volumes', 'volIdx', '-v7.3');
+    save(outmatfile, 'volumes', 'volIdx', 'sids', '-v7.3');
     toc;
     
     disp('done');
