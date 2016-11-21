@@ -6,7 +6,7 @@ function [sigmaout, sigmainv] = sigmafull(wg, sigma)
     K = size(wg.expect.gammank, 2);
     
     % initialize various sigmas.
-    sigmaout = zeros(size(sigma));
+    sigmaout = sigma;
     sigmainv = zeros(size(sigma));
     for k = 1:K
 
