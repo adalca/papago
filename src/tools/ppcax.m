@@ -224,7 +224,8 @@ if hasMissingValue
         vnew = vsum/numObs;
         
         % Compute negative log-likelihood function
-        % nloglk_new = ppcax_incomplete_nlogl(obs, Y, mu, Wnew, vnew);
+        % warning('nlogl...stop it');
+%         nloglk_new = ppcax_incomplete_nlogl(Y, mu, Wnew, vnew);
         nloglk_new = -inf;
         
         dw = max(max(abs(W-Wnew) / (sqrt(eps)+max(max(abs(Wnew))))));
@@ -317,6 +318,7 @@ score = internal.stats.insertnan(allNaN,score);
 % Store additional information at convergence
 if nargout > 5
     rsltStruct.W = W;
+    rsltStruct.mu = mu;
     rsltStruct.Xexp = X'; % make it consistent with the input data format
     rsltStruct.Recon = bsxfun(@plus,Y_hat',mu); % add estimated mean back
     rsltStruct.v = v;

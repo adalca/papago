@@ -1,4 +1,4 @@
-function nanpatches = destroyFeatures(patches, nDestroy, method)
+function [nanpatches, obsIdx] = destroyFeatures(patches, nDestroy, method)
 % destory features (voxels) in patches. Destroyed features will appear as NaNs
 %
 % patches is nSamples x prod(patchSize)
@@ -38,5 +38,5 @@ function nanpatches = destroyFeatures(patches, nDestroy, method)
             error('destroyFeatures: unknown method');
     end
     
-    
+    obsIdx = ~invalid;
     
