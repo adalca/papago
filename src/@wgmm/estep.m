@@ -45,7 +45,7 @@ function [expect, wg] = reclusterHeuristic(wg, expect)
     h = hist(mi, 1:size(expect.gammank, 2));
     
     if any(h < thr)
-        fprintf('%5d', h); fprintf('\n');
+        fprintf('%6d', h); fprintf('\n');
         fprintf(2, 'E-Step: %d clusters have less than %d datapoints\n%s\n', ...
             sum(h < thr), thr, 'using heuristics to re-define clusters.');
         
@@ -94,7 +94,7 @@ function [expect, wg] = reclusterHeuristic(wg, expect)
         end
         
         h = hist(mi, 1:size(expect.gammank, 2));
-        fprintf('%5d', h); fprintf('\n');
+        fprintf('%6d', h); fprintf('\n');
     end
     
 end

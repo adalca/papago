@@ -1,46 +1,54 @@
 function params = mstepLatentMissingR(wg, data)
 
     % data
-    R = data.R;
-    G = data.G;
-    ydsmasks = data.ydsmasks;
-    Y = data.Y;
-    N = numel(ydsmasks);
-    dHigh = size(R.data, 2);
-    K = size(wg.expect.gammank, 2);
-    Nk = sum(wg.expect.gammank, 1);
+    R = data.R;                     % R rotations from atlas to subject space.
+    G = data.G;                     % Gamma rotations from subject space to atlas space
+    Y = data.Y;                     % data in subject space
+    ydsmasks = data.ydsmasks;       % down-sample mask cell -- (should be "planes" in subject space)
+    
+    % dimensions and numbers
+    N = numel(ydsmasks);            % number of elements
+    dHigh = size(R.data, 2);        % atlas-space dimension
+    K = size(wg.expect.gammank, 2); % number of clusters
+    Nk = sum(wg.expect.gammank, 1); % sum of cluster support
 
-    % update Yhat in atlas space. This should really be part of the E-step, but we'll do it here to
-    % not pass large matrices around. Maybe we should fix this!
+    % update Yhat in atlas space. 
+    %   This should really be part of the E-step, but we'll do it here to
+    %   not pass large matrices around. Maybe we should fix this for clenliness!
     Yhat = zeros(N, dHigh, K);
     for i = 1:N
+        % extract the observed y values in original space.
         obsIdx = ydsmasks{i};
-        yobs = Y{i}(obsIdx);
+        ySubj = Y{i};
+        ySubjObs = ySubj(obsIdx);
+        
+        % prepare the rotation matrices
         r = R.data(R.idx{i}, :);
-        g = G.data(:, G.idx{i});
+        g = G.data(:, G.idx{i}); % pinv(r) might actually be better. see testGammaRotationMatrices().
 
+        % go through each cluster.
         for k = 1:K
+            % extract the kth statistics
             sigma = wg.params.sigma(:, :, k);
             mu = wg.params.mu(k, :);
 
-            % rotate sigma. see paffine.atl2SubjGauss
+            % rotate statistics to subject space. see paffine.atl2SubjGauss().
             sigmaSubj = r * sigma * r(obsIdx, :)';
             muSubj = mu * r';
 
-            % update Yhat_ik
+            % update estimate missing values
             oosigmak = sigmaSubj(obsIdx, :);
             mosigmak = sigmaSubj(~obsIdx, :);
 
-            y_ijk = Y{i};
-            y_ijk(~obsIdx) = muSubj(~obsIdx) + (mosigmak * (oosigmak \ (yobs - muSubj(obsIdx))'))';
+            ySubjk = ySubj(:)';
+            ySubjk(~obsIdx) = muSubj(~obsIdx) + (mosigmak * (oosigmak \ (ySubjObs - muSubj(obsIdx))'))';
 
-            % update mu_k. need to invert it back
-            y_ijkr = g * y_ijk(:);
-            Yhat(i, :, k) = y_ijkr';
+            % rotate back to atlas space
+            Yhat(i, :, k) = ySubjk * g';
         end
     end
     
-    % mu update (exact same as in latentMissing)
+    % mu update (same as in latentMissing, using Yhat)
     params.mu = zeros(K, dHigh);
     for k = 1:K
         gnk = wg.expect.gammank(:, k);
