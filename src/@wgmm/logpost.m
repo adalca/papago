@@ -1,4 +1,4 @@
-function logpin = logpost(wgmm, data)
+function logpin = logpost(wg, data)
 % compute log posterior
 %   p(params|x) = p(params) * p(x|params) = pi * N(X; mu, owowt .* sigma)
 %   logpin (log pi n) is N x K
@@ -8,12 +8,12 @@ function logpin = logpost(wgmm, data)
     Y = data.Y;
     if isfield(data, 'W'), wts = data.W; end
     N = size(Y, 1);
-    K = size(wgmm.params.mu, 1);
+    K = size(wg.params.mu, 1);
     
-    switch wgmm.opts.model.name
+    switch wg.opts.model.name
         case 'model0' % no weights
              
-            logpin = bsxfun(@plus, log(wgmm.params.pi), wgmm.logmvnpdf(Y, wgmm.params.mu, wgmm.params.sigma));
+            logpin = bsxfun(@plus, log(wg.params.pi), wgmm.logmvnpdf(Y, wg.params.mu, wg.params.sigma));
             assert(isclean(logpin), 'log(pi*n) is unclean');
         
         case 'model1-memsafe'
@@ -24,36 +24,36 @@ function logpin = logpost(wgmm, data)
             for k = 1:K
 
                 % first, build owowt
-                if isfield(isempty(wgmm.mem, 'logdetow')) && isempty(wgmm.mem.logdetow)
+                if isfield(isempty(wg.mem, 'logdetow')) && isempty(wg.mem.logdetow)
                     % simple and fast. 
                     % log(det(1/D)) = log(\prod(1/D_ii)) = sum(log(1/D_ii)) = sum(-log(D_ii))
-                    wgmm.mem.logdetow = sum(-log(wts), 2); 
+                    wg.mem.logdetow = sum(-log(wts), 2); 
 
                     % alternative computation, but this involves a lot of multiplications
-                    if wgmm.debug
-                        wgmm.mem.logdetow = zeros(N, 1);
+                    if wg.debug
+                        wg.mem.logdetow = zeros(N, 1);
                         for i = 1:N
-                            wgmm.mem.logdetow(i) = wgmm.logdet(diag(1./wts(i, :)));
+                            wg.mem.logdetow(i) = wg.logdet(diag(1./wts(i, :)));
                         end
                     end
-                    assert(isclean(wgmm.mem.logdetow), 'logdetow is unclean');
+                    assert(isclean(wg.mem.logdetow), 'logdetow is unclean');
                 end
 
-                sigma = wgmm.params.sigma(:,:,k);
+                sigma = wg.params.sigma(:,:,k);
                 Xw = wts .* Y;
-                mu = bsxfun(@times, wts, wgmm.params.mu(k, :));
-                logpin(:, k) = log(wgmm.params.pi(k)) + wgmm.logmvnpdf(Xw, mu, sigma) - wgmm.mem.logdetow;
+                mu = bsxfun(@times, wts, wg.params.mu(k, :));
+                logpin(:, k) = log(wg.params.pi(k)) + wgmm.logmvnpdf(Xw, mu, sigma) - wg.mem.logdetow;
             end
             assert(isclean(logpin), 'log(pi*n) is unclean');
 
             % compute logpost in other methods and test
-            if wgmm.debug
+            if wg.debug
 
                 % passing sigma and it needs inverting on the fly. This is very slow.       
                 logpinm1 = zeros(N, K);
                 for k = 1:K
-                    sigma = wgmm.iwAiw(1./wgmm.W, wgmm.params.sigma(:,:,k));
-                    logpinm1(:, k) = log(wgmm.params.pi(k)) + wgmm.logmvnpdf(wgmm.X, wgmm.params.mu(k, :), sigma);
+                    sigma = wg.iwAiw(1./wg.W, wg.params.sigma(:,:,k));
+                    logpinm1(:, k) = log(wg.params.pi(k)) + wgmm.logmvnpdf(wg.X, wg.params.mu(k, :), sigma);
                 end
                 fprintf(2, 'debug: first test method max diff %f\n', max(abs(logpin(:) - logpinm1(:))));
 
@@ -61,9 +61,9 @@ function logpin = logpost(wgmm, data)
                 % multiply in the W vectors appropriately.
                 logpinm2 = zeros(N, K);
                 for k = 1:K
-                    sigma = wgmm.iwAiw(1./wgmm.W, wgmm.params.sigma(:,:,k));
-                    sigmainv = wgmm.iwAiw(wgmm.W, wgmm.params.sigmainv(:,:,k));
-                    logpinm2(:, k) = log(wgmm.params.pi(k)) + wgmm.logmvnpdf(wgmm.X, wgmm.params.mu(k, :), sigma, sigmainv);
+                    sigma = wg.iwAiw(1./wg.W, wg.params.sigma(:,:,k));
+                    sigmainv = wg.iwAiw(wg.W, wg.params.sigmainv(:,:,k));
+                    logpinm2(:, k) = log(wg.params.pi(k)) + wgmm.logmvnpdf(wg.X, wg.params.mu(k, :), sigma, sigmainv);
                 end 
                 fprintf(2, 'debug: second test method max diff %f\n', max(abs(logpin(:) - logpinm2(:))));
             end
@@ -72,19 +72,19 @@ function logpin = logpost(wgmm, data)
             logpin = zeros(N, K);            
             
             % first, build logdet(diag(W(i, :)))
-            if isempty(wgmm.logdetw)
+            if isempty(wg.logdetw)
                 % simple and fast.
                 % log(det(D)) = log(\prod(D_ii)) = sum(log(D_ii)) = sum(log(D_ii))
-                wgmm.logdetw = sum(log(wts), 2);
+                wg.logdetw = sum(log(wts), 2);
                 
                 % alternative computation, but this involves a lot of multiplications
-                if wgmm.debug
-                    wgmm.logdetw = zeros(N, 1);
+                if wg.debug
+                    wg.logdetw = zeros(N, 1);
                     for i = 1:N
-                        wgmm.logdetw(i) = wgmm.logdet(diag(wts(i, :)));
+                        wg.logdetw(i) = wg.logdet(diag(wts(i, :)));
                     end
                 end
-                assert(isclean(wgmm.logdetw), 'logdetw is unclean');
+                assert(isclean(wg.logdetw), 'logdetw is unclean');
             end
             
             for k = 1:K
@@ -106,9 +106,9 @@ function logpin = logpost(wgmm, data)
                     'Currently: Option 1'], ...
                     'SingleWarn', true);
                 Xw = Y .* wts;
-                mu = bsxfun(@times, wts, wgmm.params.mu(k, :)) ;
+                mu = bsxfun(@times, wts, wg.params.mu(k, :)) ;
                 if nargin == 1
-                    logdetw = wgmm.logdetw;
+                    logdetw = wg.logdetw;
                     
                 else
                     if all(wts(:) == 1)
@@ -125,10 +125,10 @@ function logpin = logpost(wgmm, data)
                 % Note: passing in the inverse sigma is much faster, but might lose some accuracy.
                 % from our tests, at least on usRate = 2, patchSize of 5^3, the maximum error is ~1e-10.
 
-                if ~isempty(wgmm.params.sigmainv)
-                    logpin(:, k) = log(wgmm.params.pi(k)) + logmvnpdf(Xw, mu, wgmm.params.sigma(:,:,k), wgmm.params.sigmainv(:,:,k)) - logdetw(:);
+                if ~isempty(wg.params.sigmainv)
+                    logpin(:, k) = log(wg.params.pi(k)) + logmvnpdf(Xw, mu, wg.params.sigma(:,:,k), wg.params.sigmainv(:,:,k)) - logdetw(:);
                 else
-                    logpin(:, k) = log(wgmm.params.pi(k)) + logmvnpdf(Xw, mu, wgmm.params.sigma(:,:,k)) - logdetw(:);
+                    logpin(:, k) = log(wg.params.pi(k)) + logmvnpdf(Xw, mu, wg.params.sigma(:,:,k)) - logdetw(:);
                 end
                     
 %                 sigma = gmm.sigma(:,:,k);
@@ -155,20 +155,20 @@ function logpin = logpost(wgmm, data)
             % also compute mu^r_nk
             logpin = zeros(N, K);
             for k = 1:K
-                muk = wgmm.params.mu(k, :);
-                sigmak = wgmm.params.sigma(:,:,k);
+                muk = wg.params.mu(k, :);
+                sigmak = wg.params.sigma(:,:,k);
                 
                 for i = 1:N
                     w = wts(i, :);
                     x = Y(i, :);
                     
                     % sigmas
-                    Di = wgmm.model4fn(w);
+                    Di = wg.model4fn(w);
                     sigma = sigmak + Di;
                     
                     % consider pre-computing sigma inverse. But that's slow an dimprecise. 
                     % sigmainv = inv(sigma);
-                    logpin(i, k) = log(wgmm.params.pi(k)) + wgmm.logmvnpdf(x, muk, sigma);                    
+                    logpin(i, k) = log(wg.params.pi(k)) + wgmm.logmvnpdf(x, muk, sigma);                    
                 end
             end
             assert(isclean(logpin), 'log(pi*n) is unclean');
@@ -184,15 +184,15 @@ function logpin = logpost(wgmm, data)
 
                 % extract the observed data, mu and sigma entries
                 yobs = Y(i, obsIdx);
-                muobs = wgmm.params.mu(:, obsIdx);
-                sigmaobs = wgmm.params.sigma(obsIdx, obsIdx, :);
+                muobs = wg.params.mu(:, obsIdx);
+                sigmaobs = wg.params.sigma(obsIdx, obsIdx, :);
                 
                 % compute compute the multivariate normal for each k via logN(y^Oi; mu^Oi, sigma^Oi)
                 logmvn(i, :) = wgmm.logmvnpdf(yobs, muobs, sigmaobs);
             end
             
             % finally compute the posterior
-            logpi = log(wgmm.params.pi);
+            logpi = log(wg.params.pi);
             logpin = bsxfun(@plus, logpi, logmvn);
             
         case {'latentMissingR'}
@@ -202,30 +202,38 @@ function logpin = logpost(wgmm, data)
             ydsmasks = data.ydsmasks;
             yorigs = data.Y;
             
-            sigmac = dimsplit(3, wgmm.params.sigma); % split into cell due to faster matlab access
+            % indexing in columns is *much* faster (esp. for sparse matrices) than indexing in rows
+            % -- so we transpose the R data matrix and index in columns instead of rows.
+            RdataTrans = R.data';
+
+            % Prepare existing sigma as a K-by-1 cell. Indexing into a small cell is faster than
+            % indexing into a 3-D matrix [nData-by-nData-by-K], and since we access it this K times
+            % per iteration, it ends up mattering for our iterations.
+            sigmaCell = dimsplit(3, wg.params.sigma); % split into cell due to faster matlab access
             logmvn = zeros(N, K); tic;
             for i = 1:N
+                % adding a bit of verbosity
                 if mod((i-1), 5000) == 0, fprintf('logpost: %d/%d %3.2fs\n', i, N, toc); tic; end
                 
                 % extract the observed entry indices for this datapoint
                 obsIdx = ydsmasks{i};
                 yobs = yorigs{i}(obsIdx);
-                r = R.data(R.idx{i}(obsIdx), :); 
+                r = RdataTrans(:, R.idx{i}(obsIdx))';
 
                 % extract the observed data, mu and sigma entries
-                muobs = wgmm.params.mu * r';
+                muobs = wg.params.mu * r';
                 sigmaobs = zeros(sum(obsIdx), sum(obsIdx), K);
                 for k = 1:K
-                    sigmaobs(:,:,k) = r * sigmac{k} * r';
+                    sigmaobs(:,:,k) = r * sigmaCell{k} * r';
                 end
                 
-                % compute compute the multivariate normal for each k via logN(y^Oi; mu^Oi, sigma^Oi)
+                % multivariate normal for each k via logN(y^Oi; mu^Oi, sigma^Oi)
                 logmvn(i, :) = wgmm.logmvnpdf(yobs, muobs, sigmaobs);
             end
             fprintf('logpost: %d/%d %3.2fs\n', i, N, toc);
             
             % finally compute the posterior
-            logpi = log(wgmm.params.pi);
+            logpi = log(wg.params.pi);
             logpin = bsxfun(@plus, logpi, logmvn);
             
         otherwise

@@ -9,12 +9,16 @@ function params = mstepLatentMissingR(wg, data)
     % dimensions and numbers
     N = numel(ydsmasks);            % number of elements
     dHigh = size(R.data, 2);        % atlas-space dimension
-    K = size(wg.expect.gammank, 2); % number of clusters
+    K = data.K;                     % number of clusters
     Nk = sum(wg.expect.gammank, 1); % sum of cluster support
 
-    % Prepare existing sigma as K cells. Indexing into a small cell is faster than indexing into a
-    % 3-D matrix [nData-by-nData-by-K], and since we access it this K times per iteration, it ends
-    % up mattering for our iterations.
+    % indexing in columns is *much* faster (esp. for sparse matrices) than indexing in rows -- so we
+    % transpose the R data matrix and index in columns instead of rows.
+    RdataTrans = R.data';
+    
+    % Prepare existing sigma as a K-by-1 cell. Indexing into a small cell is faster than indexing
+    % into a 3-D matrix [nData-by-nData-by-K], and since we access it this K times per iteration, it
+    % ends up mattering for our iterations.
     sigmaPrevCell = dimsplit(3, wg.params.sigma);
     
     % update Yhat in atlas space. 
@@ -28,22 +32,24 @@ function params = mstepLatentMissingR(wg, data)
         ySubjObs = ySubj(obsIdx);
         
         % prepare the rotation matrices
-        r = R.data(R.idx{i}, :);
+        r = RdataTrans(:, R.idx{i})';
+        robs = r(obsIdx, :);
+        rmis = r(~obsIdx, :);
         g = G.data(:, G.idx{i}); % pinv(r) might actually be better. see testGammaRotationMatrices().
 
-        % go through each cluster.
+        % go through each cluster
         for k = 1:K
             % extract the kth statistics
             sigma = sigmaPrevCell{k};
             mu = wg.params.mu(k, :);
-
+            
             % rotate statistics to subject space. see paffine.atl2SubjGauss().
-            sigmaSubj = r * sigma * r(obsIdx, :)';
-            muSubj = mu * r';
-
+            %   doing sigmaSubj = r * (sigma * robs');: since the right multiplication gives fewer entries, this is much faster.
             % update estimate missing values
-            oosigmak = sigmaSubj(obsIdx, :);
-            mosigmak = sigmaSubj(~obsIdx, :);
+            srobs = (sigma * robs');
+            oosigmak = robs * srobs;
+            mosigmak = rmis * srobs;
+            muSubj = mu * r';
 
             ySubjk = ySubj(:)';
             ySubjk(~obsIdx) = muSubj(~obsIdx) + (mosigmak * (oosigmak \ (ySubjObs - muSubj(obsIdx))'))';
@@ -67,29 +73,44 @@ function params = mstepLatentMissingR(wg, data)
         obsIdx = ydsmasks{i};
         
         % prepare the rotation matrices
-        r = R.data(R.idx{i}, :);
-        g = G.data(:, G.idx{i});
-
+        r = RdataTrans(:, R.idx{i})';
+        robs = r(obsIdx, :);
+        rmis = r(~obsIdx, :);
+        
+        % gamma rotation for missing values
+        %   gMissing rows won't add up to 1, but we only multiply gMissing with a sparse S which
+        %   would have 0s in the gObserved entries, so the result should be the same
+        gMissing = G.data(:, G.idx{i}(~obsIdx));
+        
+        % go through each cluster
         for k = 1:K
             gnk = wg.expect.gammank(i, k);
             
-            % gamma rotation for missing values
-            %   gMissing rows won't add up to 1, but we only multiply gMissing with a sparse S which
-            %   would have 0s in the gObserved entries, so the result should be the same
-            gMissing = g(:, ~obsIdx); 
-            
             % compute S correction term
             sigmaPrev = sigmaPrevCell{k};
-            % rotate sigma. see paffine.atl2SubjGauss
-            sigmaPrevSubj = r * sigmaPrev * r';
+            
+            % Method 1: compute entire Subject-space Sigma, then take parts of it.
+            % % rotate sigma. see paffine.atl2SubjGauss
+            % sigmaPrevSubj = r * sigmaPrev * r'; 
+            % % extract appropriate sigmas
+            % oosigmak = sigmaPrevSubj(obsIdx, obsIdx);
+            % mosigmak = sigmaPrevSubj(~obsIdx, obsIdx);    
+            % % compute correction term
+            % sCorrTerm1 = sigmaPrevSubj(~obsIdx, ~obsIdx);
+            % sCorrTerm2 = mosigmak * (oosigmak \ mosigmak');
+            % sCorrSubjSpace = sCorrTerm1 - sCorrTerm2;
+            % sCorrAtlSpace = gMissing * sCorrSubjSpace * gMissing'; 
+             
+            % Method 2: only compute what we need in Subject space. This saves a bit of time (5%?)
             % extract appropriate sigmas
-            oosigmak = sigmaPrevSubj(obsIdx, obsIdx);
-            mosigmak = sigmaPrevSubj(~obsIdx, obsIdx);    
+            sr = (sigmaPrev * robs');
+            oosigmak = robs * sr;
+            mosigmak = rmis * sr;
             % compute correction term
-            sCorrTerm1 = sigmaPrevSubj(~obsIdx, ~obsIdx);
+            sCorrTerm1 = rmis * (sigmaPrev * rmis');
             sCorrTerm2 = mosigmak * (oosigmak \ mosigmak');
             sCorrSubjSpace = sCorrTerm1 - sCorrTerm2;
-            sCorrAtlSpace = gMissing * sCorrSubjSpace * gMissing'; 
+            sCorrAtlSpace = gMissing * sCorrSubjSpace * gMissing';       
 
             % empirical covariance for this data point
             ySubj = Yhat(i, :, k);
@@ -103,6 +124,11 @@ function params = mstepLatentMissingR(wg, data)
     params.sigma = cat(3, sigma{:});
     assert(isclean(params.sigma), 'sigma is not clean');
 
+    % normalize sigma
+    for k = 1:K
+        params.sigma(:, :, k) = params.sigma(:, :, k) ./ Nk(k);
+    end
+    
     % estimate low dimensional representation
     %   estimate sigmasq, W (principal components)
     %   update sigma to be C = W'W + sI. 
@@ -111,25 +137,20 @@ function params = mstepLatentMissingR(wg, data)
         % compute the covariance of sigma.
         for k = 1:K
             % SVD
-            [u, s, ~] = svd(params.sigma(:,:,k));
-            ds = diag(s);
+            [u, srobs, ~] = svd(params.sigma(:,:,k));
+            ds = diag(srobs);
             
             % PCA components
             dLow = wg.opts.model.dopca;
             sigmasq = 1 ./ (dHigh - dLow) * sum(ds(dLow+1:end));
-            wts = u(:, 1:dLow) * sqrt(s(1:dLow, 1:dLow) - sigmasq * eye(dLow));
-            Covar = wts*wts' + sigmasq*eye(size(u,2));
+            W = u(:, 1:dLow) * sqrt(srobs(1:dLow, 1:dLow) - sigmasq * eye(dLow));
+            Covar = W*W' + sigmasq*eye(size(u,2));
 
             % save results
             params.sigmasq(k) = sigmasq;
-            params.W(:,:,k) = wts;
+            params.W(:,:,k) = W;
             params.sigma(:,:,k) = Covar;
         end
-    end
-    
-    % normalize sigma
-    for k = 1:K
-        params.sigma(:, :, k) = params.sigma(:, :, k) ./ Nk(k);
     end
     
     % add regularization diagonal, check for PDness, etc.

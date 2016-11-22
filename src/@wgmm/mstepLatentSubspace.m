@@ -3,11 +3,15 @@ function params = mstepLatentSubspace(wg, data)
     % data
     wts = data.W;
     Y = data.Y;
-    K = size(wg.expect.gammank, 2);
+    
+    % dimensions and such
+    K = data.K;
     Nk = sum(wg.expect.gammank, 1);
     [dHigh, dLow, ~] = size(wg.params.W);
 
-    % S_ki and X_ki need to be updated as we go since they would be huge to store.
+    % update Xhat in atlas space. 
+    %   This should really be part of the E-step, but we'll do it here to
+    %   not pass large matrices around. Maybe we should fix this for clenliness!
     muk = zeros(K, size(Y,2));
     denom = zeros(K, size(Y,2));
     Shat = zeros(dLow, dLow, size(Y,1), K);

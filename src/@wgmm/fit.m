@@ -25,12 +25,10 @@ function fwgmm = fit(data, varargin)
         ll = [];
         
         % First E step and ll
-        %if ~isfield(wg.expect, 'gammank')
-        if opts.maxIter > 0
+        if opts.maxIter > 0 % only compute expectation and ll
             [ll(1), wg.expect] = wg.estep(data);
         else 
             ll = 0;
-           %ll(1) = wg.logp(data);
         end
         wg.stats(1).expect = wg.expect;
         
@@ -42,21 +40,26 @@ function fwgmm = fit(data, varargin)
         while (llpchange > opts.TolFun) && ct <= opts.maxIter
             tic;
 
+            % recluster if necessary
+            wg = wg.recluster();
+            
             % M step
             wg.params = wg.mstep(data);
             wg.stats(ct+1).params = wg.params;
 
             % E step
-            [ll(ct+1), expect, wg] = wg.estep(data);
+            [ll(ct + 1), expect] = wg.estep(data);
             wg.expect = expect;
             wg.stats(ct+1).expect = wg.expect;
             
             % add time stats
-            wg.stats(ct+1).toc = toc;
-            wg.stats(ct+1).ll = ll(ct+1);
+            wg.stats(ct + 1).toc = toc;
+            wg.stats(ct + 1).ll = ll(ct+1);
 
             % check log likelihood
-            sys.warnif(~(ll(ct+1) >= ll(ct)), sprintf('log lik went down in repl:%d iter:%d', r, ct));
+            if(ll(ct + 1) < ll(ct)) 
+                fprintf(2, 'wgmm.fit: log likelihood went down in repl:%d iter:%d', r, ct);
+            end
             llpchange = abs(ll(ct+1) - ll(ct)) ./ abs(ll(ct));
 
             % update
@@ -110,6 +113,8 @@ function [data, opts] = parseInputs(data, varargin)
     % fitting options
     p.addParameter('maxIter', dopts.maxIter, @isscalar);
     p.addParameter('replicates', dopts.replicates, @isscalar);
+    p.addParameter('reclusterThreshold', dopts.reclusterThreshold, @isscalar);
+    p.addParameter('reclusterMethod', dopts.reclusterMethod, @isscalar);
     p.addParameter('regularizationValue', dopts.regularizationValue, @isscalar)    
     p.addParameter('TolFun', dopts.TolFun, @(x) isscalar(x) && x <= inf && x >= -inf);
     p.addParameter('verbose', dopts.verbose, @isIntegerValue);
