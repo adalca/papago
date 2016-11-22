@@ -12,6 +12,11 @@ function params = mstepLatentMissingR(wg, data)
     K = size(wg.expect.gammank, 2); % number of clusters
     Nk = sum(wg.expect.gammank, 1); % sum of cluster support
 
+    % Prepare existing sigma as K cells. Indexing into a small cell is faster than indexing into a
+    % 3-D matrix [nData-by-nData-by-K], and since we access it this K times per iteration, it ends
+    % up mattering for our iterations.
+    sigmaPrevCell = dimsplit(3, wg.params.sigma);
+    
     % update Yhat in atlas space. 
     %   This should really be part of the E-step, but we'll do it here to
     %   not pass large matrices around. Maybe we should fix this for clenliness!
@@ -29,7 +34,7 @@ function params = mstepLatentMissingR(wg, data)
         % go through each cluster.
         for k = 1:K
             % extract the kth statistics
-            sigma = wg.params.sigma(:, :, k);
+            sigma = sigmaPrevCell{k};
             mu = wg.params.mu(k, :);
 
             % rotate statistics to subject space. see paffine.atl2SubjGauss().
@@ -55,21 +60,22 @@ function params = mstepLatentMissingR(wg, data)
         params.mu(k, :) = sum(bsxfun(@times, gnk, Yhat(:, :, k))) ./ sum(gnk);
     end
     
-    % update sigma using new mu
-    % prepare sigma as K cells. This is faster than a 3-D matrix [nData-by-nData-by-K] 
-    % since indexing is much faster this way.
+    % update new sigma using new mu
     sigma = arrayfunc(@(s) zeros(dHigh, dHigh), 1:K);
-    sigmaPrevCell = dimsplit(3, wg.params.sigma);
     for i = 1:N
+        % extract the observed y values in original space.
         obsIdx = ydsmasks{i};
+        
+        % prepare the rotation matrices
         r = R.data(R.idx{i}, :);
         g = G.data(:, G.idx{i});
 
         for k = 1:K
             gnk = wg.expect.gammank(i, k);
+            
             % gamma rotation for missing values
-            % gMissing rows won't add up to 1, but we only multiply it with a sparse S which would
-            % have 0s in the gObserved entries.
+            %   gMissing rows won't add up to 1, but we only multiply gMissing with a sparse S which
+            %   would have 0s in the gObserved entries, so the result should be the same
             gMissing = g(:, ~obsIdx); 
             
             % compute S correction term
@@ -85,7 +91,7 @@ function params = mstepLatentMissingR(wg, data)
             sCorrSubjSpace = sCorrTerm1 - sCorrTerm2;
             sCorrAtlSpace = gMissing * sCorrSubjSpace * gMissing'; 
 
-            % empirical covariance for this point.
+            % empirical covariance for this data point
             y_ik = Yhat(i, :, k);
             sEmpirical = (y_ik - params.mu(k,:))' * (y_ik - params.mu(k,:)); 
 
