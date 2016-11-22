@@ -57,7 +57,7 @@ function params = mstepLatentMissingR(wg, data)
     params.mu = zeros(K, dHigh);
     for k = 1:K
         gnk = wg.expect.gammank(:, k);
-        params.mu(k, :) = sum(bsxfun(@times, gnk, Yhat(:, :, k))) ./ sum(gnk);
+        params.mu(k, :) = sum(bsxfun(@times, gnk, Yhat(:, :, k))) ./ Nk(k);
     end
     
     % update new sigma using new mu
@@ -92,18 +92,20 @@ function params = mstepLatentMissingR(wg, data)
             sCorrAtlSpace = gMissing * sCorrSubjSpace * gMissing'; 
 
             % empirical covariance for this data point
-            y_ik = Yhat(i, :, k);
-            sEmpirical = (y_ik - params.mu(k,:))' * (y_ik - params.mu(k,:)); 
+            ySubj = Yhat(i, :, k);
+            sEmpirical = (ySubj - params.mu(k,:))' * (ySubj - params.mu(k,:)); 
 
             % update sigma
             sigma{k} = sigma{k} + gnk *  (sCorrAtlSpace + sEmpirical);
         end
     end
+    % combine sigma to [nData-by-nData-by-K]
     params.sigma = cat(3, sigma{:});
     assert(isclean(params.sigma), 'sigma is not clean');
 
-    % estimate sigmasq, W (principal components)
-    % update sigma to be C = W'W + sI. 
+    % estimate low dimensional representation
+    %   estimate sigmasq, W (principal components)
+    %   update sigma to be C = W'W + sI. 
     if wg.opts.model.dopca % need to also return W, sigmasq
         
         % compute the covariance of sigma.
@@ -118,17 +120,19 @@ function params = mstepLatentMissingR(wg, data)
             wts = u(:, 1:dLow) * sqrt(s(1:dLow, 1:dLow) - sigmasq * eye(dLow));
             Covar = wts*wts' + sigmasq*eye(size(u,2));
 
+            % save results
             params.sigmasq(k) = sigmasq;
             params.W(:,:,k) = wts;
             params.sigma(:,:,k) = Covar;
         end
     end
     
-    % normalize
+    % normalize sigma
     for k = 1:K
-        params.sigma(:, :, k) = params.sigma(:, :, k) ./ sum(wg.expect.gammank(:, k));
+        params.sigma(:, :, k) = params.sigma(:, :, k) ./ Nk(k);
     end
     
+    % add regularization diagonal, check for PDness, etc.
     [params.sigma, params.sigmainv] = wgmm.sigmafull(wg, params.sigma);
     
     % pi update
