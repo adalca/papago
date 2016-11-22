@@ -89,6 +89,8 @@ classdef wgmm < handle
         wg = init(wg, X, W, K, varargin);
         [sampleX, ks] = sample(gmm, N, X, cidx);
         
+        wg = recluster(wg);
+        
         
         params = wgmm.mstepModel0(wgmm, data);
         params = wgmm.mstepModel1(wgmm, data);
