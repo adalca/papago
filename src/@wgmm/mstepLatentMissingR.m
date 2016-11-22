@@ -39,6 +39,10 @@ function params = mstepLatentMissingR(wg, data)
 
         % go through each cluster
         for k = 1:K
+            % don't need to compute Yhat_ki, since it's only used when gamma_ki is > 0
+            gnk = wg.expect.gammank(i, k);
+            if gnk < 1e-4, continue; end 
+            
             % extract the kth statistics
             sigma = sigmaPrevCell{k};
             mu = wg.params.mu(k, :);
@@ -85,6 +89,7 @@ function params = mstepLatentMissingR(wg, data)
         % go through each cluster
         for k = 1:K
             gnk = wg.expect.gammank(i, k);
+            if gnk < 1e-4, continue; end
             
             % compute S correction term
             sigmaPrev = sigmaPrevCell{k};
