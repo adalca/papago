@@ -142,8 +142,8 @@ function printiter(wg, opts, ll, r)
     if ct == 0
          if opts.verbose > 0
              fprintf('\nreplicate %d\n', r);
-             fprintf('%10s\t%10s\t%10s\n', 'iter', 'logp', 'percent change');
-             fprintf('%10d\t%10f\t%10f\n', 0, ll(1), 1);
+             fprintf('%10s\t%20s\t%10s\n', 'iter', 'logp', 'percent change');
+             fprintf('%10d\t%20s\t%10f%%\n', 0, num2bank(ll(1)), 1);
          end
          
     else
@@ -151,7 +151,7 @@ function printiter(wg, opts, ll, r)
 
 
         if opts.verbose > 0
-            fprintf('%10d\t%10f\t%10f\n', ct, ll(ct+1), llpchange);
+            fprintf('%10d\t%20s\t%10f\n', ct, num2bank(ll(ct+1)), llpchange);
 
 %             if opt.verbose > 1
 %                 subplot(121); cla;
