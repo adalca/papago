@@ -45,8 +45,9 @@ function params = mstepLatentMissing(wg, data)
             mu = wg.params.mu(k, :);
 
             % update Y
-            ymis = mu(~obsIdx) + (mosigmak * (oosigmak \ (yobs - mu(obsIdx))'))';
-            Yhat(i, ~obsIdx, k) = ymis;
+            y = Y(i, :);
+            y(~obsIdx) = mu(~obsIdx) + (mosigmak * (oosigmak \ (yobs - mu(obsIdx))'))';
+            Yhat(i, :, k) = y;
         end
     end
 
@@ -89,7 +90,7 @@ function params = mstepLatentMissing(wg, data)
     end
     params.sigma = cat(3, sigma{:});
     assert(isclean(params.sigma), 'sigma is not clean');
-
+    
     % normalize
     for k = 1:K
         params.sigma(:, :, k) = params.sigma(:, :, k) ./ Nk(k);
