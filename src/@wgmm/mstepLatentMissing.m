@@ -79,8 +79,15 @@ function params = mstepLatentMissing(wg, data)
             sCorrTerm2 = mosigmak * (oosigmak \ mosigmak');
             sCorr = sCorrTerm1 - sCorrTerm2;
 
-            % prep empirical covariance
+            % prep empirical covariance.
+            % This could be done outside the loop?
             y_ik = Yhat(i, :, k);
+            
+            % ECMNMLE uses the most recent mu to recompute y_ik. 
+            % But this does nto make sense AFAWK
+            % mu = params.mu(k, :);
+            % y_ik = Y(i, :);
+            % y_ik(~obsIdx) = mu(~obsIdx) + (mosigmak * (oosigmak \ (Y(i, obsIdx) - mu(obsIdx))'))';
             sEmpirical = (y_ik - params.mu(k, :))' * (y_ik - params.mu(k, :));
 
             % update sigma

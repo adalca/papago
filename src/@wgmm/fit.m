@@ -31,6 +31,7 @@ function fwgmm = fit(data, varargin)
             ll = 0;
         end
         wg.stats(1).expect = wg.expect;
+        wg.stats(1).params = wg.params;
         
         % print inital ll
         printiter(wg, opts, ll, r);
@@ -38,7 +39,7 @@ function fwgmm = fit(data, varargin)
         % Iterative E.M. updates
         ct = 1;
         while (llpchange > opts.TolFun) && ct <= opts.maxIter
-            tic;
+            itertic = tic;
 
             % recluster if necessary
             wg = wg.recluster();
@@ -53,12 +54,12 @@ function fwgmm = fit(data, varargin)
             wg.stats(ct+1).expect = wg.expect;
             
             % add time stats
-            wg.stats(ct + 1).toc = toc;
+            wg.stats(ct + 1).toc = toc(itertic);
             wg.stats(ct + 1).ll = ll(ct+1);
 
             % check log likelihood
             if(ll(ct + 1) < ll(ct)) 
-                fprintf(2, 'wgmm.fit: log likelihood went down in repl:%d iter:%d', r, ct);
+                fprintf(2, 'wgmm.fit: log likelihood went down in repl:%d iter:%d\n', r, ct);
             end
             llpchange = abs(ll(ct+1) - ll(ct)) ./ abs(ll(ct));
 
@@ -73,11 +74,6 @@ function fwgmm = fit(data, varargin)
         % save update
         wgmms{r} = wg;
         logliks(r) = ll(end);
-    end
-    
-    if opts.verbose > 1
-        leg = arrayfunc(@(x) sprintf('replicate %d', x), 1:r);
-        legend(leg);
     end
     
     % get the best replicate
@@ -124,6 +120,7 @@ function [data, opts] = parseInputs(data, varargin)
     
     % copy
     opts = p.Results;
+    opts = rmfield(opts, 'data');
     opts = rmfield(opts, 'modelName');
     opts = rmfield(opts, 'modelArgs');
     opts.model = p.Results.modelArgs;
@@ -142,8 +139,8 @@ function printiter(wg, opts, ll, r)
     if ct == 0
          if opts.verbose > 0
              fprintf('\nreplicate %d\n', r);
-             fprintf('%10s\t%20s\t%10s\n', 'iter', 'logp', 'percent change');
-             fprintf('%10d\t%20s\t%10f%%\n', 0, num2bank(ll(1)), 1);
+             fprintf('%5s\t%20s\t%15s\t%10s\n', 'iter', 'logp', 'perc. change', 'time');
+             fprintf('%5d\t%20s\t%15f\t%10f\n', 0, num2bank(ll(1)), nan, nan);
          end
          
     else
@@ -151,7 +148,7 @@ function printiter(wg, opts, ll, r)
 
 
         if opts.verbose > 0
-            fprintf('%10d\t%20s\t%10f\n', ct, num2bank(ll(ct+1)), llpchange);
+            fprintf('%5d\t%20s\t%15f%%\t%10f\n', ct, num2bank(ll(ct+1)), llpchange, wg.stats(end).toc);
 
 %             if opt.verbose > 1
 %                 subplot(121); cla;

@@ -9,15 +9,15 @@ function [sampleX, ks] = sample(gmm, N, X, cidx)
 
     % prep N appropriately
     narginchk(2, 5);
-    K = size(gmm.mu, 1);
+    K = size(gmm.params.mu, 1);
 
     % sample
-    ks = sort(discretesample(gmm.pi, N), 'ascend');
+    ks = sort(discretesample(gmm.params.pi, N), 'ascend');
     sampleXc = cell(K, 1);
     for k = 1:K
     %     w = W(i, :);
     %     sg = (1./w' * (1./w)) .* fwgmm.sigma(:, :, k);
-        sampleXc{k} = mvnrnd(gmm.mu(k, :)', gmm.sigma(:, :, k), sum(ks == k));
+        sampleXc{k} = mvnrnd(gmm.params.mu(k, :)', gmm.params.sigma(:, :, k), sum(ks == k));
     end
     sampleX = cat(1, sampleXc{:}); % note: only ok if ks is sorted
     

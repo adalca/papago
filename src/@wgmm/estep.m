@@ -1,4 +1,4 @@
-function [ll, expect, wgmm] = estep(wgmm, data)
+function [ll, expect, wg] = estep(wg, data)
 % e-step 
 %
 % since this is a mixture model, most model variants will include an update of cluster membership
@@ -10,7 +10,7 @@ function [ll, expect, wgmm] = estep(wgmm, data)
 
     % get (unnormalized) posterior
     % this is log( p(clust) * p(data|clust) )
-    logpin = wgmm.logpost(data); % N x k
+    logpin = wg.logpost(data); % N x k
     
     % to void overflow, need to subtract the max in log space. so 
     % gamma = pin / sum(pin) where pin = pi * N()
@@ -26,4 +26,13 @@ function [ll, expect, wgmm] = estep(wgmm, data)
     % compute expected cluster assignment
     expect.gammank = bsxfun(@rdivide, top, sum(top, 2));
     assert(isclean(expect.gammank), 'cluster assignments are not clean');
+    
+    % output the number of points in each cluster
+    if wg.opts.verbose >= 2
+        mi = argmax(expect.gammank, [], 2);
+        clustAsnHist = hist(mi, 1:size(wg.expect.gammank, 2));
+        nDigits = numel(num2str(max(clustAsnHist)));
+        fprintf('Clust Mem: ');
+        fprintf(sprintf('%%%dd', nDigits+1), clustAsnHist); fprintf('\n');
+    end
 end

@@ -188,7 +188,9 @@ function logpin = logpost(wg, data)
                 sigmaobs = wg.params.sigma(obsIdx, obsIdx, :);
                 
                 % compute compute the multivariate normal for each k via logN(y^Oi; mu^Oi, sigma^Oi)
-                logmvn(i, :) = wgmm.logmvnpdf(yobs, muobs, sigmaobs);
+                % lmvn = wgmm.logmvnpdf(yobs, muobs, sigmaobs); % older and slower
+                lmvn = experimentalLogmvnpdf(yobs, muobs, sigmaobs); % new method, using ECMOBJ basically.
+                logmvn(i, :) = lmvn;
             end
             
             % finally compute the posterior
@@ -213,7 +215,9 @@ function logpin = logpost(wg, data)
             logmvn = zeros(N, K); tic;
             for i = 1:N
                 % adding a bit of verbosity
-                if mod((i-1), 5000) == 0, fprintf('logpost: %d/%d %3.2fs\n', i, N, toc); tic; end
+                if wg.opts.verbose >= 2 && mod((i-1), 5000) == 0, 
+                    fprintf('logpost: %d/%d %3.2fs\n', i, N, toc); tic; 
+                end
                 
                 % extract the observed entry indices for this datapoint
                 obsIdx = ydsmasks{i};
@@ -222,15 +226,19 @@ function logpin = logpost(wg, data)
 
                 % extract the observed data, mu and sigma entries
                 muobs = wg.params.mu * r';
-                sigmaobs = zeros(sum(obsIdx), sum(obsIdx), K);
+                sigmaobs = cell(K, 1);
                 for k = 1:K
-                    sigmaobs(:,:,k) = r * sigmaCell{k} * r';
+                    sigmaobs{k} = r * sigmaCell{k} * r';
                 end
                 
-                % multivariate normal for each k via logN(y^Oi; mu^Oi, sigma^Oi)
-                logmvn(i, :) = wgmm.logmvnpdf(yobs, muobs, sigmaobs);
+                % compute compute the multivariate normal for each k via logN(y^Oi; mu^Oi, sigma^Oi)
+                % lmvn = wgmm.logmvnpdf(yobs, muobs, sigmaobs); % older and slower
+                lmvn = experimentalLogmvnpdf(yobs, muobs, sigmaobs); % new method, using ECMOBJ basically.
+                logmvn(i, :) = lmvn;
             end
-            fprintf('logpost: %d/%d %3.2fs\n', i, N, toc);
+            if wg.opts.verbose >= 2
+                fprintf('logpost: %d/%d %3.2fs\n', i, N, toc);
+            end
             
             % finally compute the posterior
             logpi = log(wg.params.pi);
@@ -242,3 +250,34 @@ function logpin = logpost(wg, data)
     
     assert(isclean(logpin), 'logp(params|x) is not clean');
 end
+
+function obj = experimentalLogmvnpdf(yobs, muobs, sigmaobs)
+% using the tricks from the ecmobj function. should only be used when we
+% know there's missing values, otherwise it's unnecessarily slow
+
+    isc = iscell(sigmaobs);
+
+    obj = zeros(1, size(muobs, 1));
+    for k = 1:size(muobs, 1)
+
+        ltp = log(2*pi);
+        obj(k) = -0.5 * numel(yobs) * ltp;
+
+        if isc
+            [SubChol, CholState] = chol(sigmaobs{k});
+        else
+            [SubChol, CholState] = chol(sigmaobs(:,:,k));
+        end
+
+        if CholState > 0
+            error(message('finance:ecmnobj:NonPosDefSubCovar'));
+        end
+
+        SubResid = SubChol' \ (yobs(:) - muobs(k, :)');
+
+        obj(k) = obj(k) - 0.5 * (SubResid' * SubResid);
+        obj(k) = obj(k) - sum(log(diag(SubChol)));
+    end
+end
+
+

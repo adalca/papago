@@ -40,21 +40,23 @@ function params = mstepLatentMissingR(wg, data)
         % go through each cluster
         for k = 1:K
             % don't need to compute Yhat_ki, since it's only used when gamma_ki is > 0
+            % TODO: should make sure to include this in the normalization.
             gnk = wg.expect.gammank(i, k);
             if gnk < 1e-4, continue; end 
             
-            % extract the kth statistics
-            sigma = sigmaPrevCell{k};
-            mu = wg.params.mu(k, :);
-            
             % rotate statistics to subject space. see paffine.atl2SubjGauss().
-            %   doing sigmaSubj = r * (sigma * robs');: since the right multiplication gives fewer entries, this is much faster.
-            % update estimate missing values
-            srobs = (sigma * robs');
+            %   It's important to pay attention to order: 
+            %   >> sigmaSubj = r * (sigma * robs'); 
+            %   is fast since the right multiplication gives fewer entries
+            sigmaPrev = sigmaPrevCell{k};
+            srobs = (sigmaPrev * robs');
             oosigmak = robs * srobs;
             mosigmak = rmis * srobs;
+            
+            mu = wg.params.mu(k, :);
             muSubj = mu * r';
 
+            % update Y
             ySubjk = ySubj(:)';
             ySubjk(~obsIdx) = muSubj(~obsIdx) + (mosigmak * (oosigmak \ (ySubjObs - muSubj(obsIdx))'))';
 

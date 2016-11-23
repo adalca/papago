@@ -13,15 +13,17 @@ function [sigmaout, sigmainv] = sigmafull(wg, sigma)
         % check PD-ness. 
         % Note: forcing pd-ness with this method seems to screw up inverses in some cases when they
         % weren't problematic originally. :(
-        [~, err] = cholcov(sigmaout(:,:,k));
+        [~, err] = chol(sigmaout(:,:,k));
+        % [~, err] = cholcov(sigmaout(:,:,k));
         if err > 0 || isnan(err)
-            sys.warn('sigma not PD. Applying nearestSPD', 'singleWarn', true);
+            warning('sigma not PD. Applying nearestSPD');
             sigmaout(:, :, k) = nearestSPD(sigmaout(:, :, k));
         end  
 
         % add diagonal regularization
         sigmaout(:,:,k) = sigmaout(:,:,k) + eye(size(sigmaout, 1)) * wg.opts.regularizationValue; 
-        [~, err] = cholcov(sigmaout(:,:,k));
+        [~, err] = chol(sigmaout(:,:,k));
+        % [~, err] = cholcov(sigmaout(:,:,k));
         assert(err == 0, sprintf('found %d/%d negative eigenvalues', err, size(sigmaout, 1)));
 
         % inverse
