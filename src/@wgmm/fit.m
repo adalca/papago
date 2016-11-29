@@ -30,11 +30,12 @@ function fwgmm = fit(data, varargin)
         else 
             ll = 0;
         end
+        wg.stats(1).ll = ll;
         wg.stats(1).expect = wg.expect;
         wg.stats(1).params = wg.params;
         
         % print inital ll
-        printiter(wg, opts, ll, r);
+        if wg.opts.verbose > 0, printiter(wg, ll, r); end
         
         % Iterative E.M. updates
         ct = 1;
@@ -45,13 +46,17 @@ function fwgmm = fit(data, varargin)
             wg = wg.recluster();
             
             % M step
+            mtic = tic;
             wg.params = wg.mstep(data);
             wg.stats(ct+1).params = wg.params;
+            wg.stats(ct+1).mtoc = toc(mtic);
 
             % E step
+            etic = tic;
             [ll(ct + 1), expect] = wg.estep(data);
             wg.expect = expect;
             wg.stats(ct+1).expect = wg.expect;
+            wg.stats(ct+1).etoc = toc(etic);
             
             % add time stats
             wg.stats(ct + 1).toc = toc(itertic);
@@ -63,8 +68,10 @@ function fwgmm = fit(data, varargin)
             end
             llpchange = abs(ll(ct+1) - ll(ct)) ./ abs(ll(ct));
 
+            % verbosity
+            if wg.opts.verbose > 0, printiter(wg, ll, r); end
+            
             % update
-            printiter(wg, opts, ll, r);
             ct = ct + 1;
             
             % temp save.
@@ -131,66 +138,32 @@ function [data, opts] = parseInputs(data, varargin)
     opts.init.method = p.Results.init;
 end
 
-function printiter(wg, opts, ll, r)
+function printiter(wg, ll, r)
 % print information at an iteration
-
+    
     ct = numel(ll) - 1;
 
     if ct == 0
-         if opts.verbose > 0
-             fprintf('\nreplicate %d\n', r);
-             fprintf('%5s\t%20s\t%15s\t%10s\n', 'iter', 'logp', 'perc. change', 'time');
-             fprintf('%5d\t%20s\t%15f\t%10f\n', 0, num2bank(ll(1)), nan, nan);
-         end
+         fprintf('\nreplicate %d\n', r);
+         fprintf('%5s\t%15s\t%10s\t%25s\n', ...
+             'iter', 'logp', 'perc. change', 'time: total | mstep | estep');
+         fprintf('%5d\t%15s\t%10s\t%27s\n', 0, num2bank(ll(1)), ' ', ' ');
          
     else
+        % compute change
         llpchange = (ll(ct+1) - ll(ct)) ./ abs(ll(ct));
 
-
-        if opts.verbose > 0
-            fprintf('%5d\t%20s\t%15f%%\t%10f\n', ct, num2bank(ll(ct+1)), llpchange, wg.stats(end).toc);
-
-%             if opt.verbose > 1
-%                 subplot(121); cla;
-%                 plot(ll); hold on;
-%                 title('loglik');
-%                 
-%                 subplot(122); cla; 
-%                 plot(X(:, 1), X(:, 2), '.'); 
-%                 hold on; 
-%                 scatter(wg.mu(:, 1), wg.mu(:, 2), '*');
-%                 title('clustering animation of first 2 dimensions')
-%                 drawnow;
-%             end
-        end
+        % compute the number of decimal digits necessary
+        tolfun = wg.opts.TolFun;
+        % Don't count sig digits before decimal pt
+        % https://www.mathworks.com/matlabcentral/answers/
+        %   /184255-how-to-calculate-digits-after-decimal-point?s_tid=answers_rc1-3_p3_Topic
+        llChangeDigits = max(sigdigits(tolfun)-floor(log10(abs(tolfun)))-1,0); 
+        llChangeStr = sprintf('%%9.%df%%%%', llChangeDigits+1);
+        
+        % print
+        fmt = ['%5d\t%15s\t', llChangeStr, '\t%7.1f | %7.1f | %7.1f\n'];
+        fprintf(fmt, ct, num2bank(ll(ct+1)), llpchange, ...
+            wg.stats(end).toc, wg.stats(end).mtoc, wg.stats(end).etoc);
     end
 end
-
-% note: while transfering to new code, need to remember to deal with the following setting transfers
-% add defaults
-% initmethod = 'exemplar';
-% debug = false;
-% sigmareg = nan;
-% sigmaopt = {0};
-
-
-% covarUpdateMethod = 'model5';
-% muUpdateMethod = 'model5';
-% logpUpdateMethod = 'model5';
-% model4fn = @(w) diag((-log(w)).^ 2);
-% 
-% covarReconMethod = 'greedy1';
-% covarMergeMethod = 'wfact-mult-adapt'; % 'none'
-% 
-% if ~isempty(opt.updateMethod)
-% wg.covarUpdateMethod = opt.updateMethod;
-% wg.muUpdateMethod = opt.updateMethod;
-% wg.logpUpdateMethod = opt.updateMethod;
-% end
-% 
-% p.addParameter('regularizationWeight', nan, @(x) isscalar(x) | iscell(x))
-% %p.addParameter('covarMergeMethod', 'wfact-mult-adapt', @ischar);
-% p.addParameter('covarMergeMethod', 'none', @ischar);
-% 
-% p.addParameter('model4fn', @(w) diag((-log(w)).^ 2), @isfunc);
-% p.addParameter('debug', false, @islogical);
