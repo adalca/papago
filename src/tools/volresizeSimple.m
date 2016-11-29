@@ -1,4 +1,4 @@
-function vol = volresizeSimple(vol, sizeDstVol, interpMethod)
+function [vol, xi] = volresizeSimple(vol, sizeDstVol, interpMethod)
 % VOLRESIZE resize N-dimentional volume
 %   vol = volresize(vol, sizeDstVol) resizes the volume vol to the size sizeDstVol.
 %   vol = volresize(vol, sizeDstVol, interpMethod) allows the specification of the interpolation
