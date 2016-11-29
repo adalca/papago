@@ -1,4 +1,4 @@
-function varargout = recon(wg, X, W, method, varargin)
+function varargout = recon(wg, data, method, varargin)
 % given weighted gmm, "reconstruct" missing information from data.
 %
 % methods (varargin):
@@ -13,48 +13,66 @@ function varargout = recon(wg, X, W, method, varargin)
     
     switch method
         case 'eig'
-            varargout{1} = reconeig(wg, X, W, inputs.percentile);
+            varargout{1} = reconeig(wg, Y, W, inputs.percentile);
            
         case 'weig'
-            varargout{1} = reconweig(wg, X, W, inputs.percentile);
+            varargout{1} = reconweig(wg, Y, W, inputs.percentile);
             
         case 'pca'
-            varargout{1} = reconpca(wg, X, W, inputs.percentile);
+            varargout{1} = reconpca(wg, Y, W, inputs.percentile);
             
         case 'latentMissing'
-    
-            xRecon = X;
-            obsIdx = W == 1;
+            warning('LM reconstruction currenty uses most likely cluster, not wsum')
+            
+            % extract the data
+            Y = data.Y;
+            if isfield(data, 'W')
+                obsMask = data.W;
+                assert(islogical(obsMask) | all(obsMask(:) == 0 | obsMask(:) == 1));
+                obsMask = obsMask == 1; % in case it's not logical
+            else
+                obsMask = ~isnan(Y);
+            end
+            N = size(Y, 1);
+            
+            % Prepare existing sigma as a K-by-1 cell. Indexing into a small cell is faster than indexing
+            % into a 3-D matrix [nData-by-nData-by-K], and since we access it this K times per iteration, it
+            % ends up mattering for our iterations.
+            sigmaPrevCell = dimsplit(3, wg.params.sigma);
+            
+            % get maximum cluster assignment via e-step. Make sure the Estep is done in LM
             name = wg.opts.model.name;
             wg.opts.model.name = 'latentMissing';
-            [~, expect] = wg.estep(struct('Y', X, 'W', W));
+            [~, expect] = wg.estep(data);
             maxk = argmax(expect.gammank, [], 2);
             wg.opts.model.name = name;
             
-            X(~obsIdx) = nan;
-
-            for i = 1:size(X, 1)
-                lobsIdx = obsIdx(i, :);
+            % prepare output variables
+            yRecon = Y;
+            for i = 1:N
+                % extract the observed y indices
+                obsIdx = obsMask(i, :);
+                yobs = Y(i, obsIdx);
+                
+                % most likely cluster
                 k = maxk(i);
 
-                oosigmak = wg.params.sigma(lobsIdx, lobsIdx, k);
-                mosigmak = wg.params.sigma(~lobsIdx, lobsIdx, k);
-                b = (X(i, lobsIdx) - wg.params.mu(k, lobsIdx))';
-                t1 = mosigmak * (oosigmak \ b); 
-                xRecon(i, ~lobsIdx) = wg.params.mu(k, ~lobsIdx) + t1';
+                % extract sigma and mu
+                sigmaPrev = sigmaPrevCell{k};
+                oosigmak = sigmaPrev(obsIdx, obsIdx);
+                mosigmak = sigmaPrev(~obsIdx, obsIdx);
+                mu = wg.params.mu(k, :);
                 
-                % test using inpaintWithGaussConditional. This is the same, but much slower due to
-                % asserts and overhead.
-                % xReconCheck = inpaintWithGaussConditional(X(i, :)', wgmm.params.mu(k,:)', ...
-                %    wgmm.params.sigma(:, :, k), true);
-                % assert(all(isclose(xRecon(i, :), xReconCheck')));
+                % reconstruct y.
+                yRecon(i, ~obsIdx) = mu(~obsIdx) + (mosigmak * (oosigmak \ (yobs - mu(obsIdx))'))';
             end
-            varargout{1} = xRecon;
-            varargout{2} = expect;
+            varargout{1} = yRecon;
+            varargout{2} = expect.gammank;
             
         case 'latentSubspace'
+            error('Need to re-look over.');
             K = size(wg.expect.gammank, 2);
-            Y = X;
+            Y = Y;
             
             [dHigh, dLow, ~] = size(wg.params.W);
             
@@ -91,8 +109,8 @@ function varargout = recon(wg, X, W, method, varargin)
                 end
             end
             
-            xRecon = X*0;
-            xReconChk = X*0;
+            yRecon = Y*0;
+            xReconChk = Y*0;
             mi = argmax(wg.expect.gammank, [], 2);
             
             for k = 1:K
@@ -100,49 +118,83 @@ function varargout = recon(wg, X, W, method, varargin)
                 
                 wwt = w'*w;
                 cRecon = w / (wwt) * (wwt + wg.params.sigmasq(k) * eye(dLow)) * Xhat(mi==k, :, k)';
-                xRecon(mi==k, :) = bsxfun(@plus, cRecon', wg.params.mu(k, :));
+                yRecon(mi==k, :) = bsxfun(@plus, cRecon', wg.params.mu(k, :));
                 
                 xReconChk(mi==k, :) = bsxfun(@plus,  Xhat(mi==k, :, k) * w', wg.params.mu(k, :));
             end
-            varargout{1} = xRecon;
+            varargout{1} = yRecon;
             varargout{2} = xReconChk;
             
         case 'latentMissingR'
-
-            xRecon = wg.opts.model.data.yorig;
-            [~, expect] = wg.estep(struct('Y', X, 'W', W));
-
+            
+            % data
+            R = data.R;                     % R rotations from atlas to subject space.
+            Y = data.Y;                     % data in subject space
+            ydsmasks = data.ydsmasks;       % down-sample mask cell -- (should be "planes" in subject space)
+            ydsmasksFullVoxels = data.ydsmasksFullVoxels;
+            N = numel(Y);
+            assert(data.K == size(wg.params.mu,1));
+            
+            % get maximum cluster assignment via e-step. Make sure the Estep is done in LMR
+            name = wg.opts.model.name;
+            wg.opts.model.name = 'latentMissingR';
+            [~, expect] = wg.estep(data);
             maxk = argmax(expect.gammank, [], 2);
+            wg.opts.model.name = name;
             
-            R = wg.opts.model.data.R;
-            ydsmasks = wg.opts.model.data.ydsmasks;
-            yorigs = wg.opts.model.data.yorig;
+            % indexing in columns is *much* faster (esp. for sparse matrices) than indexing in rows -- so we
+            % transpose the R data matrix and index in columns instead of rows.
+            RdataTrans = R.data';
             
-            sigmac = dimsplit(3, wg.params.sigma);
+            % Prepare existing sigma as a K-by-1 cell. Indexing into a small cell is faster than
+            % indexing into a 3-D matrix [nData-by-nData-by-K], and since we access it this K times
+            % per iteration, it ends up mattering for our iterations.
+            sigmaPrevCell = dimsplit(3, wg.params.sigma);
             
-            for i = 1:size(X, 1)
-                obsIdx = ydsmasks{i};
-                yobs = yorigs{i}(obsIdx);
-                r = R.data(R.idx{i}, :); 
+            % throw a warning reminding us of a bunch of choices we're making about how to deal with data on
+            % the edges. First, we only re-estimate data in the subject space that we can contribute to with
+            % more than misThr weight of the atlas space voxels. Then we only use those voxels (and the
+            % observed voxels) in computing Yhat (the re-estimated Y in atlas space).
+            warning('Choice of which voxels to include in rotation are uncertain.');
+            misThr = 0.95;
+            % obsThr = 0.97; % should use for obsIdx?    
+            
+            yRecon = cell(1, N);
+            for i = 1:N
+                % extract the observed y values in original space.
+                obsIdx = ydsmasksFullVoxels{i};
+%                 misIdx = data.rWeight{i} > misThr & ~ydsmasks{i}; % used to be just ~obsIdx
+                misIdx = ~obsIdx;
+                ySubj = Y{i};
+                ySubjObs = ySubj(obsIdx);
+                
+                % prepare the rotation matrices
+                r = RdataTrans(:, R.idx{i})';
+                robs = r(obsIdx, :);
+                rmis = r(misIdx, :);
+                
                 k = maxk(i);
-                
-                sigmaz = sigmac{k};
-                
-                % rotate sigma. see paffine.atl2SubjGauss
-                sigmai = r * sigmaz * r';
-                mui = wg.params.mu(k, :) * r';
-                
-                % extract sigmas
-                oosigmak = sigmai(obsIdx, obsIdx);
-                mosigmak = sigmai(~obsIdx, obsIdx);
-                
-                y_ik = yorigs{i};
-                y_ik(~obsIdx) = mui(~obsIdx) + ...
-                    (mosigmak * (oosigmak \ (yobs - mui(obsIdx))'))';
-                xRecon{i} = y_ik;
-            end
-            varargout{1} = xRecon;
+        
+                % rotate statistics to subject space. see paffine.atl2SubjGauss().
+                sigmaPrev = sigmaPrevCell{k};
+                srobs = (sigmaPrev * robs');
+                oosigmak = robs * srobs;
+                mosigmak = rmis * srobs;
 
+                mu = wg.params.mu(k, :);
+                muSubj = mu * r';
+                
+                % update Y
+                ySubjk = ySubj(:)';
+%                 ySubjk = nan(size(ySubj(:)'));
+                ySubjk(misIdx) = muSubj(misIdx) + (mosigmak * (oosigmak \ (ySubjObs - muSubj(obsIdx))'))';
+                ySubjk(ydsmasks{i}) = ySubj(ydsmasks{i});
+                
+                % put back into output
+                yRecon{i} = ySubjk;
+            end
+            varargout{1} = yRecon;
+            varargout{2} = expect.gammank;
             
         otherwise 
             error('unknown method');
@@ -246,7 +298,7 @@ function rpatches = reconweig(wgmm, X, W, prctile)
     end
 end
 
-function rpatches = reconpca(wgmm, X, W, prctile)
+function rpatches = reconpca(wgmm, data, prctile)
 % reconstruct via, for each mixture k:
 %   compute principal components via PCA of data in this cluster
 %   project each patch (OP) to this space, 
