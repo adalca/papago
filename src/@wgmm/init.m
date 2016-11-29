@@ -127,6 +127,8 @@ function wg = init(wg, data, varargin)
                 mu(k,:) = nanmean(Y(ridx == k, :));
                 for i = find(ridx == k)'
                     yfill(i, ~obsIdx(i,:)) = mu(k, ~obsIdx(i,:));
+                    
+                    % if 
                 end
                 
                 % compute covariance
@@ -137,6 +139,8 @@ function wg = init(wg, data, varargin)
             wg.params.mu = mu;
             wg.params.sigma = sigmas;
             wg.params.pi = hist(ridx, 1:K) ./ N;
+            
+
             
         case 'latentMissing-clusterIdx-twostage'
             % given cluster assignments and initate clusters 
@@ -157,12 +161,53 @@ function wg = init(wg, data, varargin)
             for k = 1:K
                 % find mean and fill in means
                 mu(k,:) = nanmean(Y(ridx == k, :));
+                if ~isclean(mu)
+                    sum(ridx == k);
+                    warning('mu_k was not clean. Filling in with 0s');
+                    mu(k,isnan(mu(k,:))) = 0;
+                end
+
                 for i = find(ridx == k)'
                     yfill(i, ~obsIdx(i,:)) = mu(k, ~obsIdx(i,:));
                 end
                 
                 % compute covariance
                 sigmas(:,:,k) = cov(yfill(ridx == k, :));
+
+                warning('adding regval in 2S init');
+                sigmas(:,:,k) = sigmas(:,:,k) + eye(D) * wg.opts.regularizationValue;
+            end
+            
+
+            
+            % prepare init structure
+            wg.params.mu = mu;
+            wg.params.sigma = sigmas;
+            wg.params.pi = hist(ridx, 1:K) ./ N;
+            
+        case 'latentMissing-clusterIdx-diagonal'
+            % given cluster assignments and initate clusters 
+            % in 'diagonal' - Estimate mean, fill NaNs with mean, then estimate diagonal nanvar.
+            
+            % prepare useful variables
+            obsIdx = W == 1;
+            yfill = Y;
+            yfill(~obsIdx) = nan;
+            
+            % choose random cluster assignments
+            wg.expect.gammank = varargin{1}.wgmm.expect.gammank;
+            ridx = argmax(wg.expect.gammank, [], 2);
+            
+            % go through each cluster and initialize in twostage
+            sigmas = zeros(D, D, K);
+            mu = zeros(K, D);
+            for k = 1:K
+                
+                % find mean and fill in means
+                mu(k,:) = nanmean(Y(ridx == k, :));
+                
+                % compute covariance
+                sigmas(:,:,k) = diag(nanvar(yfill(ridx == k, :)));
             end
             
             % prepare init structure
@@ -195,6 +240,7 @@ function wg = init(wg, data, varargin)
                 
                 % compute covariance
                 sigmas(:,:,k) = cov(yfill(ridx == k, :));
+                
             end
             
             % prepare init structure
@@ -254,8 +300,9 @@ function wg = init(wg, data, varargin)
             for k = 1:K
                 x = Y(ridx == k, :);
                 w = W(ridx == k, :);
-                wgk = wgmmfit(x, w, 1, 'modelName', 'latentSubspace', 'modelArgs', wg.opts.model, ...
-                    'init', 'latentSubspace-randW', 'verbose', 1, 'replicates', 1);
+                d = struct('Y', x, 'W', w, 'K', 1);
+                wgk = wgmmfit(d, 'modelName', 'latentSubspace', 'modelArgs', wg.opts.model, ...
+                    'init', 'latentSubspace-randW', 'verbose', 1, 'replicates', 3, 'MaxIter', 10);
                 %[~, ~, ~, mu, ~, rsltStruct] = ppcax(x, wg.opts.model.dopca, 'Options', struct('Display', 'iter', 'MaxIter', 20, 'TolFun', 1e-3, 'TolX', 1e-3));
                 wg.params.mu(k,:) = wgk.params.mu;
                 wg.params.W(:,:,k) = wgk.params.W;
@@ -263,6 +310,13 @@ function wg = init(wg, data, varargin)
                 wg.params.sigmasq(k) = wgk.params.sigmasq;
                 wg.params.pi(k) = sum(ridx == k);
             end
+            
+            
+        case 'latentSubspace-clusterIdx-convergence-withrand'
+
+            error('unfinished, but should be quick');
+            wg.params = varargin{1}.wgmm.params;
+            wg.expect = varargin{1}.wgmm.expect;
             
         case 'latentSubspace-randIdx-convergence'
             % given initial cluster guesses, run single-cluster latentSubspace (ppca) on each
@@ -272,7 +326,8 @@ function wg = init(wg, data, varargin)
             for k = 1:K
                 x = Y(ridx == k, :);
                 w = W(ridx == k, :);
-                wgk = wgmmfit(x, w, 1, 'modelName', 'latentSubspace', 'modelArgs', wg.opts.model, ...
+                d = struct('Y', x, 'W', w, 'K', 1);
+                wgk = wgmmfit(d, 'modelName', 'latentSubspace', 'modelArgs', wg.opts.model, ...
                     'init', 'latentSubspace-randW', 'verbose', 1, 'replicates', 1);
                 wg.params.mu(k,:) = wgk.params.mu;
                 wg.params.W(:,:,k) = wgk.params.W;
@@ -332,13 +387,13 @@ function wg = init(wg, data, varargin)
             else % recursion
                 initArgs.dopcas = initArgs.dopcas(1:(end-1));
                 
-                wginit = wgmmfit(Y, W, K, ...
+                wginit = wgmmfit(data, ...
                     'modelName', 'latentSubspace', 'modelArgs', wg.opts.model, ...
                     'init', 'latentSubspace-iterds', 'initArgs', initArgs, ...
-                    'verbose', 1, 'replicates', 1);
+                    'verbose', wg.opts.verbose, 'replicates', 1, 'MaxIter', wg.opts.maxIter);
                 
-                yrecon = wginit.recon(Y, W, 'latentMissing');
-                save(sprintf('yrecon%d', wg.opts.model.dopca), 'yrecon');
+                %yrecon = wginit.recon(data, 'latentMissing');
+                %save(sprintf('yrecon%d', wg.opts.model.dopca), 'yrecon');
                 
                 
                 % prepare this init.
