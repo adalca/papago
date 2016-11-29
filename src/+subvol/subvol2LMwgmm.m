@@ -68,16 +68,16 @@ function subvol2LMwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFile
     
     gmmopt = statset('Display', 'iter', 'MaxIter', 20, 'TolFun', gmmTolerance);
     % gmmClust = fitgmdist(smallBlurPatches, gmmK, regstring, 1e-4, 'replicates', 3, 'Options', gmmopt);
-    gmmClust = gmdistribution.fit(Y, gmmK, regstring, 1e-4, 'replicates', 3, 'Options', gmmopt);
+    gmdist = gmdistribution.fit(Y, gmmK, regstring, 1e-4, 'replicates', 3, 'Options', gmmopt);
     
     % compute expectations
-    dspost = gmmClust.posterior(Y);
-    wgDs = wgmm.gmdist2wgmm(gmmClust);
+    dspost = gmdist.posterior(Y);
+    pi = sum(dspost) ./ sum(dspost(:));
+    % wgmm.gmdist2wgmm is problematic in 2014b.gmdist.ComponentProportion
+    wgDs = wgmm([], struct('mu', gmdist.mu, 'sigma', gmdist.Sigma, 'pi', pi));
     wgDs.expect.gammank = dspost;
     
     data = struct('Y', Y, 'W', wtPatches(trainsetIdx, :) > wthr, 'K', gmmK);
-    
-    
     
     % ecm
     wg = wgmmfit(data, 'modelName', 'latentMissing', 'modelArgs', struct('dopca', dLow), ...
