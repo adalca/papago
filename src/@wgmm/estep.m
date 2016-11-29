@@ -30,7 +30,7 @@ function [ll, expect, wg] = estep(wg, data)
     % output the number of points in each cluster
     if wg.opts.verbose >= 2
         mi = argmax(expect.gammank, [], 2);
-        clustAsnHist = hist(mi, 1:size(wg.expect.gammank, 2));
+        clustAsnHist = hist(mi, 1:data.K);
         nDigits = numel(num2str(max(clustAsnHist)));
         fprintf('Clust Mem: ');
         fprintf(sprintf('%%%dd', nDigits+1), clustAsnHist); fprintf('\n');
