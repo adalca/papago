@@ -11,7 +11,7 @@
 # prepare project and toolbox paths
 # if want to make current: "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 MAIN_PATH="/data/vision/polina/users/adalca/patchSynthesis/subspace"
-PROJECT_PATH="${MAIN_PATH}/git"
+PROJECT_PATH="${MAIN_PATH}/git-papago"
 TOOLBOX_PATH="/data/vision/polina/users/adalca/MATLAB/toolboxes"
 EXTTOOLBOX_PATH="/data/vision/polina/users/adalca/MATLAB/external_toolboxes"
 
