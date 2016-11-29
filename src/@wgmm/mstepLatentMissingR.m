@@ -5,6 +5,7 @@ function params = mstepLatentMissingR(wg, data)
     G = data.G;                     % Gamma rotations from subject space to atlas space
     Y = data.Y;                     % data in subject space
     ydsmasks = data.ydsmasks;       % down-sample mask cell -- (should be "planes" in subject space)
+    ydsmasksFullVoxels = data.ydsmasksFullVoxels;
     
     % dimensions and numbers
     N = numel(ydsmasks);            % number of elements
@@ -12,103 +13,106 @@ function params = mstepLatentMissingR(wg, data)
     K = data.K;                     % number of clusters
     Nk = sum(wg.expect.gammank, 1); % sum of cluster support
 
+    % throw a warning reminding us of a bunch of choices we're making about how to deal with data on
+    % the edges. First, we only re-estimate data in the subject space that we can contribute to with
+    % more than misThr weight of the atlas space voxels. Then we only use those voxels (and the
+    % observed voxels) in computing Yhat (the re-estimated Y in atlas space).
+    warning('Choice of which voxels to include in rotation are uncertain.');
+    misThr = 0.95;
+    % obsThr = 0.97; % should use for obsIdx?    
+    
     % indexing in columns is *much* faster (esp. for sparse matrices) than indexing in rows -- so we
     % transpose the R data matrix and index in columns instead of rows.
     RdataTrans = R.data';
     
-    % Prepare existing sigma as a K-by-1 cell. Indexing into a small cell is faster than indexing
-    % into a 3-D matrix [nData-by-nData-by-K], and since we access it this K times per iteration, it
-    % ends up mattering for our iterations.
-    sigmaPrevCell = dimsplit(3, wg.params.sigma);
+    % prepare new variables
+    newMu = zeros(K, dHigh);
+    newSigma = zeros(dHigh, dHigh, K);
     
-    % update Yhat in atlas space. 
-    %   This should really be part of the E-step, but we'll do it here to
-    %   not pass large matrices around. Maybe we should fix this for clenliness!
-    Yhat = zeros(N, dHigh, K);
-    for i = 1:N
-        % extract the observed y values in original space.
-        obsIdx = ydsmasks{i};
-        ySubj = Y{i};
-        ySubjObs = ySubj(obsIdx);
-        
-        % prepare the rotation matrices
-        r = RdataTrans(:, R.idx{i})';
-        robs = r(obsIdx, :);
-        rmis = r(~obsIdx, :);
-        g = G.data(:, G.idx{i}); % pinv(r) might actually be better. see testGammaRotationMatrices().
+    % Operate per cluster since there is no interaction among clusters, and this way we can keep
+    % much smaller variables around.
+    for k = 1:K
+        sigmaPrev = wg.params.sigma(:, :, k);
+        muPrev = wg.params.mu(k, :);
+        expectk = wg.expect.gammank(:, k);
 
-        % go through each cluster
-        for k = 1:K
+        % update Yhat in atlas space. 
+        %   This should really be part of the E-step, but we'll do it here to
+        %   not pass large matrices around.
+        Yhat = zeros(N, dHigh);
+        for i = 1:N
             % don't need to compute Yhat_ki, since it's only used when gamma_ki is > 0
             % TODO: should make sure to include this in the normalization.
-            gnk = wg.expect.gammank(i, k);
-            if gnk < 1e-4, continue; end 
+            if expectk(i) < 1e-4, continue; end
             
+            % extract the observed y values in original space.
+            obsIdx = ydsmasksFullVoxels{i};
+            misIdx = data.rWeight{i} > misThr & ~ydsmasks{i}; % used to be just ~obsIdx
+            ySubj = Y{i};
+            ySubjObs = ySubj(obsIdx);
+
+            % prepare the rotation matrices
+            r = RdataTrans(:, R.idx{i})';
+            robs = r(obsIdx, :);
+            rmis = r(misIdx, :);
+
             % rotate statistics to subject space. see paffine.atl2SubjGauss().
             %   It's important to pay attention to order: 
             %   >> sigmaSubj = r * (sigma * robs'); 
             %   is fast since the right multiplication gives fewer entries
-            sigmaPrev = sigmaPrevCell{k};
             srobs = (sigmaPrev * robs');
             oosigmak = robs * srobs;
             mosigmak = rmis * srobs;
-            
-            mu = wg.params.mu(k, :);
-            muSubj = mu * r';
+            muSubj = muPrev * r';
 
             % update Y
             ySubjk = ySubj(:)';
-            ySubjk(~obsIdx) = muSubj(~obsIdx) + (mosigmak * (oosigmak \ (ySubjObs - muSubj(obsIdx))'))';
+            ySubjk(misIdx) = muSubj(misIdx) + (mosigmak * (oosigmak \ (ySubjObs - muSubj(obsIdx))'))';
 
             % rotate back to atlas space
-            Yhat(i, :, k) = ySubjk * g';
+            %   - pinv(r) might actually be better. see testGammaRotationMatrices()
+            %   - need to avoid values we didn't re-estimate and were not observed
+            validVals = misIdx | ydsmasks{i};
+            g = G.data(:, G.idx{i}(validVals)); % g is atl-by-subj
+            g = bsxfun(@rdivide, g, sum(g, 2)); % make sure it sums to 1.
+            Yhat(i, :) = ySubjk(validVals) * g';
         end
-    end
-    
-    % mu update (same as in latentMissing, using Yhat)
-    params.mu = zeros(K, dHigh);
-    for k = 1:K
-        gnk = wg.expect.gammank(:, k);
-        params.mu(k, :) = sum(bsxfun(@times, gnk, Yhat(:, :, k))) ./ Nk(k);
-    end
-    
-    % update new sigma using new mu
-    sigma = arrayfunc(@(s) zeros(dHigh, dHigh), 1:K);
-    for i = 1:N
-        % extract the observed y values in original space.
-        obsIdx = ydsmasks{i};
+        f = isnan(Yhat);
+        if sum(f(:)) > 0
+            warning('mstepLMR: Found %d NANs in Yhat. Filling them in with the mean', sum(f(:)));
+            [~, b] = ind2sub(size(Yhat), find(f));
+            Yhat(f) = muPrev(b);
+        end
+        assert(isclean(Yhat));
+
+        % mu update (same as in latentMissing, using Yhat)
+        newMuk = sum(bsxfun(@times, expectk, Yhat)) ./ sum(expectk);
+
+        % update sigma. Start with the empirical covariance. Note:
+        %   - ECMNMLE use the most recent mu to *recompute* y_ik. This does not make sense to us
+        %     y_ik = Y(i, :);
+        %     y_ik(~obsIdx) = newMuk(~obsIdx) + (mosigmak * (oosigmak \ (Y(i, obsIdx) - newMuk(obsIdx))'))';
+        ydiff = bsxfun(@times, sqrt(wg.expect.gammank(:, k)), bsxfun(@minus, Yhat, newMuk));
+        newSigmak = ydiff' * ydiff;
         
-        % prepare the rotation matrices
-        r = RdataTrans(:, R.idx{i})';
-        robs = r(obsIdx, :);
-        rmis = r(~obsIdx, :);
-        
-        % gamma rotation for missing values
-        %   gMissing rows won't add up to 1, but we only multiply gMissing with a sparse S which
-        %   would have 0s in the gObserved entries, so the result should be the same
-        gMissing = G.data(:, G.idx{i}(~obsIdx));
-        
-        % go through each cluster
-        for k = 1:K
-            gnk = wg.expect.gammank(i, k);
-            if gnk < 1e-4, continue; end
+        for i = 1:N
+            if expectk(i) < 1e-4, continue; end
             
-            % compute S correction term
-            sigmaPrev = sigmaPrevCell{k};
-            
-            % Method 1: compute entire Subject-space Sigma, then take parts of it.
-            % % rotate sigma. see paffine.atl2SubjGauss
-            % sigmaPrevSubj = r * sigmaPrev * r'; 
-            % % extract appropriate sigmas
-            % oosigmak = sigmaPrevSubj(obsIdx, obsIdx);
-            % mosigmak = sigmaPrevSubj(~obsIdx, obsIdx);    
-            % % compute correction term
-            % sCorrTerm1 = sigmaPrevSubj(~obsIdx, ~obsIdx);
-            % sCorrTerm2 = mosigmak * (oosigmak \ mosigmak');
-            % sCorrSubjSpace = sCorrTerm1 - sCorrTerm2;
-            % sCorrAtlSpace = gMissing * sCorrSubjSpace * gMissing'; 
-             
-            % Method 2: only compute what we need in Subject space. This saves a bit of time (5%?)
+            % extract the observed y values in original space.
+            obsIdx = ydsmasksFullVoxels{i};
+            misIdx = data.rWeight{i} > misThr & ~ydsmasks{i}; % used to be ~obsIdx        
+
+            % prepare the rotation matrices
+            r = RdataTrans(:, R.idx{i})';
+            robs = r(obsIdx, :);
+            rmis = r(misIdx, :);
+
+            % gamma rotation for missing values
+            %   gMissing rows won't add up to 1, but we only multiply gMissing with a sparse S which
+            %   would have 0s in the gObserved entries, so the result should be the same
+            gMissing = G.data(:, G.idx{i}(misIdx));
+
+            % only compute what we need in Subject space. This saves a bit of time (5%?)
             % extract appropriate sigmas
             sr = (sigmaPrev * robs');
             oosigmak = robs * sr;
@@ -119,22 +123,20 @@ function params = mstepLatentMissingR(wg, data)
             sCorrSubjSpace = sCorrTerm1 - sCorrTerm2;
             sCorrAtlSpace = gMissing * sCorrSubjSpace * gMissing';       
 
-            % empirical covariance for this data point
-            ySubj = Yhat(i, :, k);
-            sEmpirical = (ySubj - params.mu(k,:))' * (ySubj - params.mu(k,:)); 
-
             % update sigma
-            sigma{k} = sigma{k} + gnk *  (sCorrAtlSpace + sEmpirical);
+            newSigmak = newSigmak + expectk(i) *  sCorrAtlSpace;
         end
+        
+        % normalize and record stats
+        newMu(k, :) = newMuk;
+        newSigma(:, :, k) = newSigmak ./ sum(expectk);
     end
-    % combine sigma to [nData-by-nData-by-K]
-    params.sigma = cat(3, sigma{:});
+        
+    % update parameters
+    params.mu = newMu;
+    params.sigma = newSigma;
+    assert(isclean(params.mu), 'mu is not clean');
     assert(isclean(params.sigma), 'sigma is not clean');
-
-    % normalize sigma
-    for k = 1:K
-        params.sigma(:, :, k) = params.sigma(:, :, k) ./ Nk(k);
-    end
     
     % estimate low dimensional representation
     %   estimate sigmasq, W (principal components)
@@ -167,3 +169,16 @@ function params = mstepLatentMissingR(wg, data)
     params.pi = Nk ./ N; 
     assert(isclean(params.pi));
 end
+
+% old sigmak computations
+% Method 1: compute entire Subject-space Sigma, then take parts of it.
+% % rotate sigma. see paffine.atl2SubjGauss
+% sigmaPrevSubj = r * sigmaPrev * r'; 
+% % extract appropriate sigmas
+% oosigmak = sigmaPrevSubj(obsIdx, obsIdx);
+% mosigmak = sigmaPrevSubj(~obsIdx, obsIdx);    
+% % compute correction term
+% sCorrTerm1 = sigmaPrevSubj(~obsIdx, ~obsIdx);
+% sCorrTerm2 = mosigmak * (oosigmak \ mosigmak');
+% sCorrSubjSpace = sCorrTerm1 - sCorrTerm2;
+% sCorrAtlSpace = gMissing * sCorrSubjSpace * gMissing'; 

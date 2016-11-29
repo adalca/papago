@@ -16,92 +16,79 @@ function params = mstepLatentMissing(wg, data)
     [N, dHigh] = size(Y);
     Nk = sum(wg.expect.gammank, 1);
     
-    % Prepare existing sigma as a K-by-1 cell. Indexing into a small cell is faster than indexing
-    % into a 3-D matrix [nData-by-nData-by-K], and since we access it this K times per iteration, it
-    % ends up mattering for our iterations.
-    sigmaPrevCell = dimsplit(3, wg.params.sigma);
+    % prepare new variables
+    newMu = zeros(K, dHigh);
+    newSigma = zeros(dHigh, dHigh, K);
     
-    % update Yhat 
-    %   This should really be part of the E-step, but we'll do it here to
-    %   not pass large matrices around. Maybe we should fix this for clenliness!
-    %   y_ik^Oi (observed) = y_i^Oi data
-    %   y_ik^Mi (missing) = mu_k^Mi + C_k^MiOi * inv(C_k^OiOi) * (y_i^Oi - mu_k^Oi)
-    Yhat = zeros(N, dHigh, K);
-    for i = 1:N
-        % extract the observed y values
-        obsIdx = obsMask(i, :);
-        yobs = Y(i, obsIdx);
-        
-        % go through each cluster
-        for k = 1:K
+    % Operate per cluster since there is no interaction among clusters, and this way we can keep
+    % much smaller variables around.
+    for k = 1:K
+        sigmaPrev = wg.params.sigma(:, :, k);
+        muPrev = wg.params.mu(k, :);
+        expectk = wg.expect.gammank(:, k);
+
+        % update Yhat 
+        %   This should really be part of the E-step, but we'll do it here to
+        %   not pass large matrices around. 
+        %   y_ik^Oi (observed) = y_i^Oi data
+        %   y_ik^Mi (missing) = mu_k^Mi + C_k^MiOi * inv(C_k^OiOi) * (y_i^Oi - mu_k^Oi)
+        Yhat = Y; % N-by-dHigh;
+        for i = 1:N
             % don't need to compute Yhat_ki, since it's only used when gamma_ki is > 0
-            gnk = wg.expect.gammank(i, k);
-            if gnk < 1e-4, continue; end 
+            if expectk(i) < 1e-4, continue; end 
             
-            % extract sigma and mu
-            sigmaPrev = sigmaPrevCell{k};
+            % extract the observed y values
+            obsIdx = obsMask(i, :);
+            yobs = Y(i, obsIdx);
+
+            % extract sigma
             oosigmak = sigmaPrev(obsIdx, obsIdx);
             mosigmak = sigmaPrev(~obsIdx, obsIdx);
-            mu = wg.params.mu(k, :);
 
-            % update Y
-            y = Y(i, :);
-            y(~obsIdx) = mu(~obsIdx) + (mosigmak * (oosigmak \ (yobs - mu(obsIdx))'))';
-            Yhat(i, :, k) = y;
+            % update Yhat
+            Yhat(i, ~obsIdx) = muPrev(~obsIdx) + (mosigmak * (oosigmak \ (yobs - muPrev(obsIdx))'))';
         end
-    end
 
-    % update mu
-    params.mu = zeros(K, dHigh);
-    for k = 1:K
-        gnk = wg.expect.gammank(:, k);
-        params.mu(k, :) = sum(bsxfun(@times, gnk, Yhat(:, :, k))) ./ Nk(k);
-    end
-    
-    % update sigma using new mu
-    sigma = arrayfunc(@(s) zeros(dHigh, dHigh), 1:K);
-    for i = 1:N
-        % extract the observed mask
-        obsIdx = obsMask(i, :);
+        % update mu_k
+        newMuk = sum(bsxfun(@times, expectk, Yhat)) ./ sum(expectk);
+
+        % update sigma. Start with the empirical covariance. Note:
+        %   - ECMNMLE use the most recent mu to *recompute* y_ik. This does not make sense to us
+        %     y_ik = Y(i, :);
+        %     y_ik(~obsIdx) = newMuk(~obsIdx) + (mosigmak * (oosigmak \ (Y(i, obsIdx) - newMuk(obsIdx))'))';
+        ydiff = bsxfun(@times, sqrt(wg.expect.gammank(:, k)), bsxfun(@minus, Yhat, newMuk));
+        newSigmak = ydiff' * ydiff;
         
-        % go through each cluster
-        for k = 1:K
-            gnk = wg.expect.gammank(i, k);
-            if gnk < 1e-4, continue; end
+        % add the correction term
+        for i = 1:N
+            if expectk(i) < 1e-4, continue; end
             
-            % compute S correction term
-            sigmaPrev = sigmaPrevCell{k};
+            % extract the observed mask
+            obsIdx = obsMask(i, :);
+
             % extract appropriate sigmas
             oosigmak = sigmaPrev(obsIdx, obsIdx);
             mosigmak = sigmaPrev(~obsIdx, obsIdx);
+            
             % compute correction term
             sCorrTerm1 = sigmaPrev(~obsIdx, ~obsIdx);
             sCorrTerm2 = mosigmak * (oosigmak \ mosigmak');
             sCorr = sCorrTerm1 - sCorrTerm2;
 
-            % prep empirical covariance.
-            % This could be done outside the loop?
-            y_ik = Yhat(i, :, k);
-            
-            % ECMNMLE uses the most recent mu to recompute y_ik. 
-            % But this does nto make sense AFAWK
-            % mu = params.mu(k, :);
-            % y_ik = Y(i, :);
-            % y_ik(~obsIdx) = mu(~obsIdx) + (mosigmak * (oosigmak \ (Y(i, obsIdx) - mu(obsIdx))'))';
-            sEmpirical = (y_ik - params.mu(k, :))' * (y_ik - params.mu(k, :));
-
             % update sigma
-            sigma{k}(~obsIdx, ~obsIdx) = sigma{k}(~obsIdx, ~obsIdx) + gnk * sCorr;
-            sigma{k} = sigma{k} + gnk * sEmpirical;
+            newSigmak(~obsIdx, ~obsIdx) = newSigmak(~obsIdx, ~obsIdx) + expectk(i) * sCorr;
         end
+        
+        % normalize and record stats
+        newMu(k, :) = newMuk;
+        newSigma(:, :, k) = newSigmak ./ sum(expectk);
     end
-    params.sigma = cat(3, sigma{:});
-    assert(isclean(params.sigma), 'sigma is not clean');
     
-    % normalize
-    for k = 1:K
-        params.sigma(:, :, k) = params.sigma(:, :, k) ./ Nk(k);
-    end
+    % update parameters
+    params.mu = newMu;
+    params.sigma = newSigma;
+    assert(isclean(params.mu), 'mu is not clean');
+    assert(isclean(params.sigma), 'sigma is not clean');
 
     % estimate sigmasq, W (principal components)
     % update sigma to be C = W'W + sI. 
