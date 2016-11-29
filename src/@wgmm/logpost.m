@@ -198,20 +198,22 @@ function logpin = logpost(wg, data)
             logpin = bsxfun(@plus, logpi, logmvn);
             
         case {'latentMissingR'}
+            warning('Still unsure of how to treat R and G at the edges. Need to fix this!');
+            warning('LMR E-Step: doing a trick or rotating data back in atlas space :(');
             
             % extract useful data
             R = data.R;
-            ydsmasks = data.ydsmasks;
+            ydsmasks = data.ydsmasksFullVoxels; % only use the "absolutely" full voxels.
             yorigs = data.Y;
             
             % indexing in columns is *much* faster (esp. for sparse matrices) than indexing in rows
             % -- so we transpose the R data matrix and index in columns instead of rows.
-            RdataTrans = R.data';
+            % RdataTrans = R.data';
 
             % Prepare existing sigma as a K-by-1 cell. Indexing into a small cell is faster than
             % indexing into a 3-D matrix [nData-by-nData-by-K], and since we access it this K times
             % per iteration, it ends up mattering for our iterations.
-            sigmaCell = dimsplit(3, wg.params.sigma); % split into cell due to faster matlab access
+            % sigmaCell = dimsplit(3, wg.params.sigma); % split into cell due to faster matlab access
             logmvn = zeros(N, K); tic;
             for i = 1:N
                 % adding a bit of verbosity
@@ -220,16 +222,24 @@ function logpin = logpost(wg, data)
                 end
                 
                 % extract the observed entry indices for this datapoint
-                obsIdx = ydsmasks{i};
-                yobs = yorigs{i}(obsIdx);
-                r = RdataTrans(:, R.idx{i}(obsIdx))';
-
-                % extract the observed data, mu and sigma entries
-                muobs = wg.params.mu * r';
-                sigmaobs = cell(K, 1);
-                for k = 1:K
-                    sigmaobs{k} = r * sigmaCell{k} * r';
-                end
+%                 obsIdx = ydsmasks{i};
+%                 yobs = yorigs{i}(obsIdx);
+%                 r = RdataTrans(:, R.idx{i}(obsIdx))';
+%                 
+%                 % extract the observed data, mu and sigma entries
+%                 muobs = wg.params.mu * r';
+%                 sigmaobs = cell(K, 1);
+%                 for k = 1:K
+%                     sigmaobs{k} = r * sigmaCell{k} * r';
+%                 end
+                
+                % hack
+                g = data.G.data(:, data.G.idx{i});
+                ww = data.ydsmasks{i} * g';
+                obsIdx = ww > 0.5;
+                yobs = yorigs{i} * g(obsIdx, :)';
+                muobs = wg.params.mu(:, obsIdx);
+                sigmaobs = wg.params.sigma(obsIdx, obsIdx, :);
                 
                 % compute compute the multivariate normal for each k via logN(y^Oi; mu^Oi, sigma^Oi)
                 % lmvn = wgmm.logmvnpdf(yobs, muobs, sigmaobs); % older and slower
