@@ -7,6 +7,10 @@ warning off backtrace; % turn off backtrace for warnings.
 warning off verbose;
 
 %% PATH Settings
+
+    [~, whoami] = system('whoami');
+    spl = strsplit(whoami, '\');
+    usrname = strtrim(spl{end}); 
 if ispc % adrian
     TOOLBOXES_PATH = 'C:/Users/adalca/Dropbox (Personal)/MATLAB/toolboxes';
     SYNTHESIS_DATA_PATH = 'D:/Dropbox (MIT)/Research/patchSynthesis/data/'; % synthetic processed data
@@ -14,9 +18,6 @@ if ispc % adrian
     OUTPUT_PATH = 'D:/Dropbox (MIT)/Research/patchSynthesis/output/subspace';
     
 else
-    [~, whoami] = system('whoami');
-    spl = strsplit(whoami, '\');
-    usrname = strtrim(spl{end}); 
     switch usrname
         case 'klbouman' % katie's local mac
                    if strncmp(pwd, '/data', 5)
