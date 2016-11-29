@@ -56,7 +56,7 @@ function viewGmmInDataset(atlfile, grididx, gmmfilepath, patchSize)
     end
 end
 
-function showChosenCluster(subvolpath, gmmpath, )
+function showChosenCluster(subvolpath, gmmpath)
     % 1. get the right gmm for this location
     
     
