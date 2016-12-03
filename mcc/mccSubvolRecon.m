@@ -25,8 +25,8 @@ function mccSubvolRecon(gmmFile, subvolFile, iniReconFile, ...
     nPatchReconPerLoc = ini.mrf.nPatchReconPerLoc; % 1;
     atlPatchSize = ini.atlPatchSize;
 
-    for i = 1:size(gmm.mu, 1)
-        gmm.sigma(:,:,i) = gmm.sigma(:,:,i) + eye(size(gmm.mu,2)) * ini.regval;
+    for i = 1:size(gmm.params.mu, 1)
+        gmm.params.sigma(:,:,i) = gmm.params.sigma(:,:,i) + eye(size(gmm.params.mu,2)) * ini.regval;
     end
     
     % load volumes
