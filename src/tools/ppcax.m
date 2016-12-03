@@ -132,9 +132,9 @@ elseif k > maxRank-1
     warning(message('stats:ppca:Warnk',maxRank,k));
 end
 
-paramNames = {'Options', 'W0',      'v0'};
-dfts =       {[],        randn(p,k), rand};
-[Opt,W,v,setFlag] = internal.stats.parseArgs(paramNames,dfts,varargin{:});
+paramNames = {'Options', 'W0',      'v0', 'mu0'}; % AVD: added mu0
+dfts =       {[],        randn(p,k), rand, zeros(p,1)};
+[Opt,W,v,mu,setFlag] = internal.stats.parseArgs(paramNames,dfts,varargin{:});
 
 % Check 'Options' argument values
 defaultopt = statset('ppca');
@@ -170,7 +170,7 @@ warning('off','MATLAB:nearlySingularMatrix');
 cleanupObj = onCleanup(@() warning(warnState));
 
 % Preallocate memory
-mu = zeros(p,1);
+% mu = zeros(p,1);
 X = zeros(k,n);
 Wnew = zeros(p,k);
 C = zeros(k,k,n);
