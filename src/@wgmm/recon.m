@@ -43,7 +43,8 @@ function varargout = recon(wg, data, method, varargin)
             % get maximum cluster assignment via e-step. Make sure the Estep is done in LM
             name = wg.opts.model.name;
             wg.opts.model.name = 'latentMissing';
-            [~, expect] = wg.estep(data);
+            [lll, expect] = wg.estep(data);
+            lll
             maxk = argmax(expect.gammank, [], 2);
             wg.opts.model.name = name;
             
@@ -70,9 +71,9 @@ function varargout = recon(wg, data, method, varargin)
             varargout{2} = expect.gammank;
             
         case 'latentSubspace'
-            error('Need to re-look over.');
-            K = size(wg.expect.gammank, 2);
-            Y = Y;
+            %error('Need to re-look over.');
+            K = data.K;
+            Y = data.Y;
             
             [dHigh, dLow, ~] = size(wg.params.W);
             
@@ -82,7 +83,7 @@ function varargout = recon(wg, data, method, varargin)
             S = zeros(dLow, dLow, size(Y,1), K);
             Xhat = zeros(size(Y,1), dLow, K);
             for i = 1:size(Y, 1)
-                obsIdx = W(i, :) == 1;
+                obsIdx = data.W(i, :) == 1;
                 yobs = Y(i, obsIdx);
 
                 for k = 1:K
@@ -111,7 +112,9 @@ function varargout = recon(wg, data, method, varargin)
             
             yRecon = Y*0;
             xReconChk = Y*0;
-            mi = argmax(wg.expect.gammank, [], 2);
+            [lll, expect] = wg.estep(data);
+            % maxk = argmax(expect.gammank, [], 2);
+            mi = argmax(expect.gammank, [], 2);
             
             for k = 1:K
                 w = wg.params.W(:,:,k);
@@ -138,7 +141,8 @@ function varargout = recon(wg, data, method, varargin)
             % get maximum cluster assignment via e-step. Make sure the Estep is done in LMR
             name = wg.opts.model.name;
             wg.opts.model.name = 'latentMissingR';
-            [~, expect] = wg.estep(data);
+            [lll, expect] = wg.estep(data);
+            lll
             maxk = argmax(expect.gammank, [], 2);
             wg.opts.model.name = name;
             
@@ -163,6 +167,7 @@ function varargout = recon(wg, data, method, varargin)
             for i = 1:N
                 % extract the observed y values in original space.
                 obsIdx = ydsmasksFullVoxels{i};
+%                 obsIdx = ydsmasks{i};
 %                 misIdx = data.rWeight{i} > misThr & ~ydsmasks{i}; % used to be just ~obsIdx
                 misIdx = ~obsIdx;
                 ySubj = Y{i};
