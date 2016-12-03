@@ -48,7 +48,7 @@ function subvol2LMwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFile
     dsSubvolsCrop = cropVolume(dsSubvols, [diffPad+1 1], [volSize-diffPad nSubj]);
     wtSubvolsCrop = cropVolume(wtSubvols, [diffPad+1 1], [volSize-diffPad nSubj]);
     
-    %% get patches
+    %% get patches and init.
     dsPatches = patchlib.vol2lib(dsSubvolsCrop, [patchSize 1]);
     wtPatches = patchlib.vol2lib(wtSubvolsCrop, [patchSize 1]);
     
@@ -56,27 +56,29 @@ function subvol2LMwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFile
     % here we'll use clusterIdxMat as the file to dump the trainsetIdx matrix
     if ~sys.isfile(clusterIdxMat)
         trainsetIdx = randsample(size(dsPatches, 1), nPatches);
-        save(clusterIdxMat, 'trainsetIdx');
+        Y = dsPatches(trainsetIdx, :);
+        
+        gmmopt = statset('Display', 'iter', 'MaxIter', 3, 'TolFun', gmmTolerance);
+        % gmmClust = fitgmdist(smallBlurPatches, gmmK, regstring, 1e-4, 'replicates', 3, 'Options', gmmopt);
+        gmdist = gmdistribution.fit(Y, gmmK, regstring, 1e-4, 'replicates', 3, 'Options', gmmopt);
+
+        % compute expectations
+        dspost = gmdist.posterior(Y);
+        pi = sum(dspost) ./ sum(dspost(:));
+        % wgmm.gmdist2wgmm is problematic in 2014b.gmdist.ComponentProportion
+        wgDs = wgmm([], struct('mu', gmdist.mu, 'sigma', gmdist.Sigma, 'pi', pi));
+        wgDs.expect.gammank = dspost;
+        
+        save(clusterIdxMat, 'trainsetIdx', 'wgDs');
     else
-        q = load(clusterIdxMat, 'trainsetIdx');
+        q = load(clusterIdxMat, 'trainsetIdx', 'wgDs');
         trainsetIdx = q.trainsetIdx;
         assert(numel(trainsetIdx) == nPatches, 'The saved number of patches is incorrect');
+        
+        Y = dsPatches(trainsetIdx, :);
     end
         
     %% run
-    Y = dsPatches(trainsetIdx, :);
-    
-    gmmopt = statset('Display', 'iter', 'MaxIter', 20, 'TolFun', gmmTolerance);
-    % gmmClust = fitgmdist(smallBlurPatches, gmmK, regstring, 1e-4, 'replicates', 3, 'Options', gmmopt);
-    gmdist = gmdistribution.fit(Y, gmmK, regstring, 1e-4, 'replicates', 3, 'Options', gmmopt);
-    
-    % compute expectations
-    dspost = gmdist.posterior(Y);
-    pi = sum(dspost) ./ sum(dspost(:));
-    % wgmm.gmdist2wgmm is problematic in 2014b.gmdist.ComponentProportion
-    wgDs = wgmm([], struct('mu', gmdist.mu, 'sigma', gmdist.Sigma, 'pi', pi));
-    wgDs.expect.gammank = dspost;
-    
     data = struct('Y', Y, 'W', wtPatches(trainsetIdx, :) > wthr, 'K', gmmK);
     
     % ecm
