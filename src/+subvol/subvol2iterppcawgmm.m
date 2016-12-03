@@ -1,4 +1,4 @@
-function subvol2iterppcawgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFilename, optionalSubvolSaveMatFileName)
+function wg = subvol2iterppcawgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFilename, optionalSubvolSaveMatFileName)
 % dsSubvolMat - matfile name of subvolume
 % wtSubvolMat - matfile name of weights
 % iniFilename - ini filename with parameters (input)
@@ -115,7 +115,7 @@ function subvol2iterppcawgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, i
         
         X0 = dsPatches(clusterIdx==k,:); 
         W0 = wtPatches(clusterIdx==k,:); 
-        params.ppcaMinK:params.ppcaKskip:params.ppcaMaxK
+        %params.ppcaMinK:params.ppcaKskip:params.ppcaMaxK
         d = size(X0, 2);
         c = cov(X0); % initial covariance
         
@@ -132,7 +132,7 @@ function subvol2iterppcawgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, i
             Winit = u(:, 1:pk) * (sqrt(s(1:pk, 1:pk)) - vinit * eye(pk));
             opts = struct('TolFun', params.ppcaTolFun, 'TolX', params.ppcaTolX, 'Display', 'final', 'MaxIter', params.maxPPCAiter);
             [COEFF, SCORE, LATENT, MU, V, S] = ppcax(X0, pk, 'Options', opts, 'W0', Winit);
-            1
+            
             % reconstruction
             srecon = S.Recon;
             means(k,:) = mean(srecon);
@@ -232,7 +232,7 @@ function subvol2iterppcawgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, i
     end
 
     %% save wgmm
-    wg = wgmm(means, sigmas, pis);
+    wg = wgmm([], struct('mu', means, 'sigma', sigmas, 'pi', pis));
     save(wgmmMat, 'wg', 'allSamp', 'clusterIdx', 'postVal', 'params', 'Ssave'); 
 
     warning('remember to add small diagonal component to sigmas in next code'); 
