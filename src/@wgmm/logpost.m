@@ -7,7 +7,7 @@ function logpin = logpost(wg, data)
     % prepare convenient variables
     Y = data.Y;
     if isfield(data, 'W'), wts = data.W; end
-    N = size(Y, 1);
+    [N, dHigh] = size(Y);
     K = size(wg.params.mu, 1);
     
     switch wg.opts.model.name
@@ -88,7 +88,6 @@ function logpin = logpost(wg, data)
             end
             
             for k = 1:K
-
 
                 % how to actually compute? 
                 % method 1: just do as if no weights involved
@@ -173,7 +172,7 @@ function logpin = logpost(wg, data)
             end
             assert(isclean(logpin), 'log(pi*n) is unclean');
             
-        case {'latentMissing', 'latentSubspace'}
+        case 'latentMissing'
             % missing variables. 
             assert(islogical(wts) | all(wts(:) == 0 | wts(:) == 1));
             
@@ -197,6 +196,41 @@ function logpin = logpost(wg, data)
             logpi = log(wg.params.pi);
             logpin = bsxfun(@plus, logpi, logmvn);
             
+        case 'latentSubspace'
+            % missing variables. 
+            assert(islogical(wts) | all(wts(:) == 0 | wts(:) == 1));
+            
+            % need to compute sigma since it's not a main parameter in LS.
+%             sigma = zeros(dHigh, dHigh, K);
+%             for k = 1:K
+%                 sigma(:,:,k) = wg.params.W(:,:,k) * wg.params.W(:,:,k)' + wg.params.sigmasq(k) .* eye(dHigh);
+%             end
+            
+            % might be unnecessary to check for PDness here due to the formula of sigma in the LS case
+            % [params.sigma, params.sigmainv] = wgmm.sigmafull(wg, sigma);
+            
+            logmvn = zeros(N, K);
+            for i = 1:N
+                % extract the observed entry indices for this datapoint
+                obsIdx = wts(i, :) == 1;
+
+                % extract the observed data, mu and sigma entries
+                yobs = Y(i, obsIdx);
+                muobs = wg.params.mu(:, obsIdx);
+                % sigmaobs = sigma(obsIdx, obsIdx, :);
+                
+                % compute compute the multivariate normal for each k via logN(y^Oi; mu^Oi, sigma^Oi)
+                % lmvn = wgmm.logmvnpdf(yobs, muobs, sigmaobs); % older and slower
+                %lmvn = experimentalLogmvnpdf(yobs, muobs, sigmaobs); % new method, using ECMOBJ basically.
+                Wobs = wg.params.W(obsIdx, :, :);
+                lmvn = experimentalLogmvnpdfW(yobs, muobs, Wobs, wg.params.sigmasq);
+                logmvn(i, :) = lmvn;
+            end
+            
+            % finally compute the posterior
+            logpi = log(wg.params.pi);
+            logpin = bsxfun(@plus, logpi, logmvn);
+            
         case {'latentMissingR'}
             warning('Still unsure of how to treat R and G at the edges. Need to fix this!');
             warning('LMR E-Step: doing a trick or rotating data back in atlas space :(');
@@ -208,12 +242,12 @@ function logpin = logpost(wg, data)
             
             % indexing in columns is *much* faster (esp. for sparse matrices) than indexing in rows
             % -- so we transpose the R data matrix and index in columns instead of rows.
-            % RdataTrans = R.data';
+            RdataTrans = R.data';
 
             % Prepare existing sigma as a K-by-1 cell. Indexing into a small cell is faster than
             % indexing into a 3-D matrix [nData-by-nData-by-K], and since we access it this K times
             % per iteration, it ends up mattering for our iterations.
-            % sigmaCell = dimsplit(3, wg.params.sigma); % split into cell due to faster matlab access
+            sigmaCell = dimsplit(3, wg.params.sigma); % split into cell due to faster matlab access
             logmvn = zeros(N, K); tic;
             for i = 1:N
                 % adding a bit of verbosity
@@ -222,24 +256,24 @@ function logpin = logpost(wg, data)
                 end
                 
                 % extract the observed entry indices for this datapoint
-%                 obsIdx = ydsmasks{i};
-%                 yobs = yorigs{i}(obsIdx);
-%                 r = RdataTrans(:, R.idx{i}(obsIdx))';
-%                 
-%                 % extract the observed data, mu and sigma entries
-%                 muobs = wg.params.mu * r';
-%                 sigmaobs = cell(K, 1);
-%                 for k = 1:K
-%                     sigmaobs{k} = r * sigmaCell{k} * r';
-%                 end
+                obsIdx = ydsmasks{i};
+                yobs = yorigs{i}(obsIdx);
+                r = RdataTrans(:, R.idx{i}(obsIdx))';
+                
+                % extract the observed data, mu and sigma entries
+                muobs = wg.params.mu * r';
+                sigmaobs = cell(K, 1);
+                for k = 1:K
+                    sigmaobs{k} = r * sigmaCell{k} * r';
+                end
                 
                 % hack
-                g = data.G.data(:, data.G.idx{i});
-                ww = data.ydsmasks{i} * g';
-                obsIdx = ww > 0.5;
-                yobs = yorigs{i} * g(obsIdx, :)';
-                muobs = wg.params.mu(:, obsIdx);
-                sigmaobs = wg.params.sigma(obsIdx, obsIdx, :);
+%                 g = data.G.data(:, data.G.idx{i});
+%                 ww = data.ydsmasks{i} * g';
+%                 obsIdx = ww > 0.5;
+%                 yobs = yorigs{i} * g(obsIdx, :)';
+%                 muobs = wg.params.mu(:, obsIdx);
+%                 sigmaobs = wg.params.sigma(obsIdx, obsIdx, :);
                 
                 % compute compute the multivariate normal for each k via logN(y^Oi; mu^Oi, sigma^Oi)
                 % lmvn = wgmm.logmvnpdf(yobs, muobs, sigmaobs); % older and slower
@@ -290,4 +324,44 @@ function obj = experimentalLogmvnpdf(yobs, muobs, sigmaobs)
     end
 end
 
+function obj = experimentalLogmvnpdfW(yobs, muobs, Wobs, v)
+
+    isc = iscell(Wobs);
+    [dHigh, dLow, K] = size(Wobs);
+    ltp = log(2*pi);
+
+    obj = zeros(1, size(muobs, 1)) - 0.5 * numel(yobs) * ltp;
+    
+    % for each cluster;
+    for k = 1:K
+        % extrtact W and L
+        if isc, W = Wobs{k}; else, W = Wobs(:,:,k); end
+        L = W ./ sqrt(v(k));
+        df = (yobs(:) - muobs(k, :)');
+        sLow = L' * L + eye(dLow);
+        
+        % method 1
+        if dLow < 30 % 30 is estimated...
+            q = df' * L;
+            t0 = q * (sLow \ q');
+            t1 = 0.5 * (df' * df  - t0) ./ v(k);
+            % via Sylvester's determinant identity (SDI)
+            % det(s) = det(W * W' + v I
+            %        = det(v * L * L' + v I
+            %        = det(v (L * L' + I)
+            %        = v^dHigh * det(L' * L + I) % By SDI
+            t2 = 0.5 * (dHigh * log(v(k))) + 0.5 * logdet(sLow);
+        else
+        
+            % method 2
+            SubChol = chol(sLow);
+            t0p1 = SubChol' \ L';
+            t0 = t0p1' * (t0p1 * df); % do the df mult first!
+            t1 = 0.5 * df' * (df - t0) ./ v(k);
+            t2 = 0.5 * (dHigh * log(v(k))) + sum(log(diag(SubChol)));
+        end
+        
+        obj(k) = obj(k) - t1 - t2;
+    end
+end
 
