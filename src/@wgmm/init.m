@@ -20,6 +20,20 @@ function wg = init(wg, data, varargin)
             wg.params = varargin{1}.wgmm.params;
             wg.expect = varargin{1}.wgmm.expect;
             
+            if strcmp('latentSubspace', wg.opts.model.name) && ...
+                (~isfield(wg.params, 'W') || size(wg.params.W, 2) ~= wg.opts.model.dopca)
+                warning('wgmm init: W not the right size. Re-estimating from Sigma');
+
+                W = zeros(size(Y, 2), wg.opts.model.dopca, K);
+                v = zeros(1, K);
+                for k = 1:K
+                    [W(:,:,k), v(k)] = sigma2modelParams(wg.params.sigma(:,:,k), wg.opts.model.dopca);
+                    wg.params.sigma(:,:,k) = W(:,:,k) * W(:,:,k)' + v(k) * eye(size(Y, 2));
+                end
+                wg.params.W = W;
+                wg.params.sigmasq = v;
+            end
+            
         % initialize from a matlab gmm
         case 'gmm'
             gm = varargin{1};
@@ -374,6 +388,7 @@ function wg = init(wg, data, varargin)
             initArgs = varargin{1};
             dN = numel(initArgs.dopcas);
             assert(dN >= 1);
+            dHigh = size(data.Y, 2);
             
             % dopca has to be adjusted in three palces: 
             % in the initial pca arguments (x2) and in *this* wg options.
@@ -384,13 +399,23 @@ function wg = init(wg, data, varargin)
                 initArgs.wgmm.opts.model.dopca = initArgs.dopcas;
                 wginit = initArgs.wgmm;
                 
+                W = zeros(size(Y, 2), wg.opts.model.dopca, K);
+                v = zeros(1, K);
+                for k = 1:K
+                    [W(:,:,k), v(k)] = sigma2modelParams(wginit.params.sigma(:,:,k), wg.opts.model.dopca);
+                    wginit.params.sigma(:,:,k) = W(:,:,k) * W(:,:,k)' + v(k) * eye(dHigh);
+                end
+                wginit.params.W = W;
+                wginit.params.sigmasq = v;
+                
             else % recursion
                 initArgs.dopcas = initArgs.dopcas(1:(end-1));
                 
                 wginit = wgmmfit(data, ...
                     'modelName', 'latentSubspace', 'modelArgs', wg.opts.model, ...
                     'init', 'latentSubspace-iterds', 'initArgs', initArgs, ...
-                    'verbose', wg.opts.verbose, 'replicates', 1, 'MaxIter', wg.opts.maxIter);
+                    'verbose', wg.opts.verbose, 'replicates', 1, 'MaxIter', wg.opts.maxIter, ...
+                    'TolFun', wg.opts.TolFun);
                 
                 %yrecon = wginit.recon(data, 'latentMissing');
                 %save(sprintf('yrecon%d', wg.opts.model.dopca), 'yrecon');
@@ -415,7 +440,10 @@ function wg = init(wg, data, varargin)
                     case 'recompute'
                         W = zeros(size(Y, 2), wg.opts.model.dopca, K);
                         v = zeros(1, K);
+                        warning('this is the same as adding 0s I thikn');
                         for k = 1:K
+                            oW = wginit.params.W(:, :, k);
+                            wginit.params.sigma(:, :, k) = oW * oW' + wginit.params.sigmasq(k) * eye(dHigh);
                             [W(:,:,k), v(k)] = sigma2modelParams(wginit.params.sigma(:, :, k), wg.opts.model.dopca);
                         end
                         wginit.params.W = W;
@@ -423,15 +451,30 @@ function wg = init(wg, data, varargin)
                         
                     case 'add0'
                         disp('add0');
-                        [dHigh, oldDLow] = size(wginit.params.W);
+                        [dHigh, oldDLow, K] = size(wginit.params.W);
                         wginit.params.W = [wginit.params.W, zeros(dHigh, wg.opts.model.dopca - oldDLow, K)];
+                        
+                    case 'addI'
+                        disp('addI');
+                        [dHigh, oldDLow, K] = size(wginit.params.W);
+                        ei = repmat(eye(dHigh), [1,1,K]);
+                        wginit.params.W = [wginit.params.W, ei(:, oldDLow+1:wg.opts.model.dopca, :)];
+                        
+                    case 'addRand'
+                        disp('addRand');
+                        [dHigh, oldDLow, K] = size(wginit.params.W);
+                        wginit.params.W = [wginit.params.W, randn(dHigh, wg.opts.model.dopca - oldDLow, K)];
+                        assert(isclean(wginit.params.W));
                         
                     case 'nochange' % don't change w. Should work if coded carefully.
                         error('should be same effect as add0');
+                    otherwise
+                        error('unknown frow method');
                 end
             end
             wg.params = wginit.params;
             wg.expect = wginit.expect;
+            wg.stats(1).wginit = wginit;
             
             
         otherwise
@@ -440,7 +483,9 @@ function wg = init(wg, data, varargin)
     
     % check cleanliness and sizes.
     assert(isclean(wg.params.mu));
-    assert(isclean(wg.params.sigma));
+    if isfield(wg.params, 'sigma')
+        assert(isclean(wg.params.sigma));
+    end
     assert(isclean(wg.params.pi));
     % assert(all(size(wg.params.mu) == [K, D]), 'The size of init mu is incorrect');
     % assert(all(size(permute(wg.params.sigma, [3 1 2])) == [K, D, D]), 'The size of init sigma is incorrect');
