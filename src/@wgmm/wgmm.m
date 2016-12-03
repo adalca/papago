@@ -72,7 +72,9 @@ classdef wgmm < handle
             
             if nargin >= 2
                 wg.params = varargin{1}; 
-                assert(size(wg.params.mu, 1) == size(wg.params.sigma, 3));
+                if isfield(wg.params, 'sigma')
+                    assert(size(wg.params.mu, 1) == size(wg.params.sigma, 3));
+                end
                 assert(size(wg.params.mu, 1) == numel(wg.params.pi));
             end
         end
