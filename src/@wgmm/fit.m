@@ -50,7 +50,7 @@ function fwgmm = fit(data, varargin)
             wg.params = wg.mstep(data);
             wg.stats(ct+1).params = wg.params;
             wg.stats(ct+1).mtoc = toc(mtic);
-
+            
             % E step
             etic = tic;
             [ll(ct + 1), expect] = wg.estep(data);
