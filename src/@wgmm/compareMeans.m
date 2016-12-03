@@ -1,7 +1,7 @@
 function compareMeans(gmms, patchSize, titles)
     narginchk(2, 3);
     gmms = ifelse(iscell(gmms), gmms, {gmms});
-    mus = cellfunc(@(x) x.mu, gmms);
+    mus = cellfunc(@(x) x.params.mu, gmms);
 
     T = numel(gmms);
     if nargin == 1
@@ -43,7 +43,7 @@ function compareMeans(gmms, patchSize, titles)
     end
 
     % visualize mus via 2d slices images
-    r32 = @(x) subspacetools.reshapeN3Dto2D(x, patchSize);
+    r32 = @(x) patchview.reshapeto2D(x, patchSize);
     figuresc();
     for i = 1:T
         subplot(nRows, nCols, i); 

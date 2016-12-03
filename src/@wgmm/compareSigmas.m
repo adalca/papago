@@ -1,7 +1,7 @@
 function compareSigmas(gmms, titles)
     narginchk(1, 2);
     gmms = ifelse(iscell(gmms), gmms, {gmms});
-    sigmas = cellfunc(@(x) x.sigma, gmms);
+    sigmas = cellfunc(@(x) x.params.sigma, gmms);
     [S, ~, K] = size(sigmas{1});
 
     T = numel(gmms);
