@@ -320,7 +320,9 @@ function wg = init(wg, data, varargin)
                 %[~, ~, ~, mu, ~, rsltStruct] = ppcax(x, wg.opts.model.dopca, 'Options', struct('Display', 'iter', 'MaxIter', 20, 'TolFun', 1e-3, 'TolX', 1e-3));
                 wg.params.mu(k,:) = wgk.params.mu;
                 wg.params.W(:,:,k) = wgk.params.W;
-                wg.params.sigma(:,:,k) = wgk.params.sigma;
+%                 if isfield(wgk.params, 'sigma')
+%                     wg.params.sigma(:,:,k) = wgk.params.sigma;
+%                 end
                 wg.params.sigmasq(k) = wgk.params.sigmasq;
                 wg.params.pi(k) = sum(ridx == k);
             end
