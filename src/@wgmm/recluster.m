@@ -44,7 +44,9 @@ function wg = recluster(wg)
                     
                     % reset parameters
                     wg.params.mu(lowClustIdx, :) = wg.params.mu(largestCluster, :);
-                    wg.params.sigma(:, :, lowClustIdx) = wg.params.sigma(:, :, largestCluster);
+                    if isfield(wg.params, 'sigma')
+                        wg.params.sigma(:, :, lowClustIdx) = wg.params.sigma(:, :, largestCluster);
+                    end
                     wg.params.pi(lowClustIdx) = wg.params.pi(largestCluster)/2;
                     wg.params.pi(largestCluster) = wg.params.pi(largestCluster)/2;
                     % also update low-dim parameters
