@@ -79,10 +79,6 @@ function subvol2iterLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, ini
     end
         
     %% run    
-    for k = 1:gmmK
-        wgDs.params.sigma = repmat(eye(size(dsPatches, 2)), [1,1,gmmK]); 
-        wgDs.params.W = wgDs.params.sigma(:, 1:dLow, :); 
-    end
     
     % ecm
     itersteps = params.ppcaMinK:params.ppcaKskip:params.ppcaMaxK;

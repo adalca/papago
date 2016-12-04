@@ -206,7 +206,13 @@ function varargout = recon(wg, data, method, varargin)
                 
                 % test recon from recon.
                 obsIdx = data.rWeight{i} > misThr & ~ydsmasks{i};
-                misIdx = data.rWeight{i} > misThr & ydsmasks{i};
+%                 misIdx = data.rWeight{i} > misThr & ydsmasks{i};
+                
+                q = rand(size(obsIdx)) < 0.5;
+                misIdx = obsIdx & ~q;
+                obsIdx = obsIdx & q;
+
+                
                 ySubjObs = yRecon{i}(obsIdx);
                 
                 % prepare the rotation matrices
