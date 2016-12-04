@@ -288,6 +288,8 @@ function logpin = logpost(wg, data)
             logpi = log(wg.params.pi);
             logpin = bsxfun(@plus, logpi, logmvn);
             
+%             figure(); imagesc(logpin)
+            
         otherwise
             error('unknown logp method');
     end
