@@ -77,6 +77,10 @@ function varargout = recon(wg, data, method, varargin)
             
             [dHigh, dLow, ~] = size(wg.params.W);
             
+            [lll, expect] = wg.estep(data);
+            % maxk = argmax(expect.gammank, [], 2);
+            mi = argmax(expect.gammank, [], 2);
+            
             % compute Xhat
             muk = zeros(K, size(Y,2));
             denom = zeros(K, size(Y,2));
@@ -99,10 +103,10 @@ function varargout = recon(wg, data, method, varargin)
                     
                     % update mu_k
                     muterm = yobs' - w * X_ki;
-                    muk(k, obsIdx) = muk(k, obsIdx) + wg.expect.gammank(i, k) .* muterm';
+                    muk(k, obsIdx) = muk(k, obsIdx) + expect.gammank(i, k) .* muterm';
                     
                     % denominator for mu_k
-                    denom(k, obsIdx) = denom(k, obsIdx) + wg.expect.gammank(i, k);
+                    denom(k, obsIdx) = denom(k, obsIdx) + expect.gammank(i, k);
                     
                     % update large matrices
                     S(:,:,i,k) = S_ki;
@@ -112,9 +116,7 @@ function varargout = recon(wg, data, method, varargin)
             
             yRecon = Y*0;
             xReconChk = Y*0;
-            [lll, expect] = wg.estep(data);
-            % maxk = argmax(expect.gammank, [], 2);
-            mi = argmax(expect.gammank, [], 2);
+
             
             for k = 1:K
                 w = wg.params.W(:,:,k);
@@ -142,7 +144,7 @@ function varargout = recon(wg, data, method, varargin)
             name = wg.opts.model.name;
             wg.opts.model.name = 'latentMissingR';
             [lll, expect] = wg.estep(data);
-            lll
+            
             maxk = argmax(expect.gammank, [], 2);
             wg.opts.model.name = name;
             
@@ -160,11 +162,14 @@ function varargout = recon(wg, data, method, varargin)
             % more than misThr weight of the atlas space voxels. Then we only use those voxels (and the
             % observed voxels) in computing Yhat (the re-estimated Y in atlas space).
             warning('Choice of which voxels to include in rotation are uncertain.');
-            misThr = 0.95;
+            misThr = 0.99;
             % obsThr = 0.97; % should use for obsIdx?    
             
+            rrerr = 0;
             yRecon = cell(1, N);
             for i = 1:N
+                k = maxk(i);
+                
                 % extract the observed y values in original space.
                 obsIdx = ydsmasksFullVoxels{i};
 %                 obsIdx = ydsmasks{i};
@@ -177,8 +182,6 @@ function varargout = recon(wg, data, method, varargin)
                 r = RdataTrans(:, R.idx{i})';
                 robs = r(obsIdx, :);
                 rmis = r(misIdx, :);
-                
-                k = maxk(i);
         
                 % rotate statistics to subject space. see paffine.atl2SubjGauss().
                 sigmaPrev = sigmaPrevCell{k};
@@ -197,9 +200,33 @@ function varargout = recon(wg, data, method, varargin)
                 
                 % put back into output
                 yRecon{i} = ySubjk;
+                
+                
+                
+                
+                % test recon from recon.
+                obsIdx = data.rWeight{i} > misThr & ~ydsmasks{i};
+                misIdx = data.rWeight{i} > misThr & ydsmasks{i};
+                ySubjObs = yRecon{i}(obsIdx);
+                
+                % prepare the rotation matrices
+                r = RdataTrans(:, R.idx{i})';
+                robs = r(obsIdx, :);
+                rmis = r(misIdx, :);
+                sigmaPrev = sigmaPrevCell{k};
+                srobs = (sigmaPrev * robs');
+                oosigmak = robs * srobs;
+                mosigmak = rmis * srobs;
+                muSubj = mu * r';
+                
+                % reconstruct "original" data
+                q = muSubj(misIdx) + (mosigmak * (oosigmak \ (ySubjObs - muSubj(obsIdx))'))';
+                % compute error compared to "original" data
+                rrerr = rrerr + sum(abs(q(:) - ySubj(misIdx(:))')); % reconstructed values
             end
             varargout{1} = yRecon;
             varargout{2} = expect.gammank;
+            fprintf('LogLike: %3.2f, rrerr: %3.2f\n', lll, rrerr);
             
         otherwise 
             error('unknown method');
