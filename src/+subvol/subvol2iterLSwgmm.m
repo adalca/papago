@@ -72,6 +72,7 @@ function subvol2iterLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, ini
     else
         q = load(clusterIdxMat, 'trainsetIdx', 'wgDs');
         trainsetIdx = q.trainsetIdx;
+        wgDs = q.wgDs;
         assert(numel(trainsetIdx) == nPatches, 'The saved number of patches is incorrect');
         
         Y = dsPatches(trainsetIdx, :);
