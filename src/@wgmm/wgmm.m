@@ -92,7 +92,7 @@ classdef wgmm < handle
         [sampleX, ks] = sample(gmm, N, X, cidx);
         
         wg = recluster(wg);
-        
+        wg = wv2sigma(wg);
         
         params = wgmm.mstepModel0(wgmm, data);
         params = wgmm.mstepModel1(wgmm, data);
