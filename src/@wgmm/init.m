@@ -350,6 +350,30 @@ function wg = init(wg, data, varargin)
                 wg.params.pi(k) = sum(ridx == k);
             end
             
+        case 'latentSubspace-randn'
+            
+            wg.params = varargin{1}.wgmm.params;
+            
+            dLow = wg.opts.model.dopca;
+            
+            % compute expectations and cluster assignments
+            [~, wg.expect] = varargin{1}.wgmm.estep(data); 
+            ridx = argmax(wg.expect.gammank, [], 2);
+            
+            % go through each cluster
+            for k = 1:K
+                % extract data
+                cidx = ridx == k;
+                w = W(cidx, :);
+                X = Y(cidx, :); 
+                
+                % compute mu
+                wg.params.mu(k, :) = wmean(X, w, 1);
+                ws = wg.params.W(:,1:dLow,k);
+                newW(:,:,k) = ws .* (1+randn(size(ws)));
+            end
+            wg.params.W = newW;
+            
             
         case 'latentSubspace-clusterIdx-convergence-withrand'
 
@@ -381,33 +405,65 @@ function wg = init(wg, data, varargin)
             % (rand) residual variance within each cluster
             assert(isclean(Y), 'latentSubspace-model3 needs DS Y input.');
             
-            W(W == 0) = 0.001;
-            wg.expect.gammank = varargin{1}.wgmm.expect.gammank;
+            % compute expectations and cluster assignments
+            [~, wg.expect] = varargin{1}.wgmm.estep(data); 
             ridx = argmax(wg.expect.gammank, [], 2);
+            
+            % go through each cluster
             for k = 1:K
-                wg.params.mu(k,:) = nanmean(Y(ridx==k, :), 1);
+                % extract data
+                cidx = ridx == k;
+                w = W(cidx, :);
+                X = Y(cidx, :); 
+                
+                % compute mu
+                wg.params.mu(k, :) = wmean(X, w, 1);
+                xCent = bsxfun(@minus, X, wg.params.mu(k, :));
                 
                 % model 3 sigma
-                xc = bsxfun(@minus, Y(ridx==k), wg.params.mu(k,:));
-                wx = W(ridx==k, :) .* xc;
-                aa = wx' * wx;
-                wtsum = W' * W;
-                s = aa ./ wtsum;
+                wxCent = w .* xCent;
+                top = wxCent' * wxCent;
+                wtsum = w' * w;
+                s = top ./ wtsum;
+                
+                % decide how to deal with low weight areas
+                switch varargin{1}.sigmaCorr
+                    case 'zero'
+                        s(wtsum < varargin{1}.sigmaCorrThr) = 0;
+                    case 'mean'
+                        m = mean(s(wtsum(:) > varargin{1}.sigmaCorrThr));
+                        s(wtsum < varargin{1}.sigmaCorrThr) = m;
+                    case 'diag'
+                        s = diag(diag(s));
+                    case 'ds'
+                        q = (wtsum ./ sum(cidx) ./ mean(w(:)));
+                        q = min(q, 1);
+                        sc = cov(xCent);
+                        % s(wtsum < varargin{1}.sigmaCorrThr) = sc(wtsum < varargin{1}.sigmaCorrThr);
+                        s(isnan(s)) = 0;
+                        s = s .* q + sc .* (1-q);
+                    case 'ds-diag'
+                        s = cov(xCent) + diag(diag(s));
+                    case 'hack'
+                        reconMethod = varargin{1}.sigmaCorrRecon; % usually 'greedy1'
+                        mergeMethod = varargin{1}.sigmaCorrMerge; % usually 'wfact-mult-adapt'
+                        
+                        args = varargin{1}.sigmaCorrMergeArgs;
+                        
+                        sp = s;
+                        sp(isnan(s)) = 0;
+                        sr = wgmm.sigmarecon(sp, wtsum, reconMethod);
+                        s = wgmm.sigmamerge(sp, sr, wtsum, mergeMethod, args{:});
+                    otherwise
+                        error('unknown sigma correction method');
+                end
                 assert(isclean(s))
                 
-                % fix sigmas. Need to set some wg parameters for this:
-                wgx.opts.model.name = 'model3';
-                wgx.opts.model.recon = 'greedy1';
-                wgx.opts.model.merge = 'wfact-mult-adapt';
-                wgx.opts.mergeargs = {(2 * 2 + 1) * 15 ./ K};
-                wgx.expect.gammank = wg.expect.gammank;
-                wgx.opts.regularizationValue = wg.opts.regularizationValue;
-                [wg.params.sigma(:, :, k), sigmainv] = wg.sigmafull(Y(ridx==k, :), W(ridx==k, :), 1, wgx, wg.params.mu(k,:), s);
-
-                
-                [wg.params.W(:,:,k), wg.params.sigmasq(k)] = sigma2modelParams(wg.params.sigma(:, :, k), wg.opts.model.dopca);
+                % assign sigma
+                [wg.params.W(:,:,k), wg.params.sigmasq(k)] = sigma2modelParams(s, wg.opts.model.dopca);
                 wg.params.pi(k) = sum(ridx==k)./numel(ridx);
             end
+            
             
         case 'latentSubspace-iterds'
             initArgs = varargin{1};
