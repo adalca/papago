@@ -16,6 +16,8 @@ function params = mstep(wg, data)
             params = wg.mstepModel5(data);
         case 'latentSubspace'
             params = wg.mstepLatentSubspace(data);
+        case 'wLatentSubspace'
+            params = wg.mstepWLatentSubspace(data);
         case 'latentMissing'
             params = wg.mstepLatentMissing(data);
         case 'latentMissingR'
