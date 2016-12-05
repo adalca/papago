@@ -100,6 +100,7 @@ classdef wgmm < handle
         params = wgmm.mstepModel4exp(wgmm, data);
         params = wgmm.mstepModel5(wgmm, data);
         params = wgmm.mstepLatentSubspace(wgmm, data);
+        params = wgmm.mstepWLatentSubspace(wgmm, data);
         params = wgmm.mstepLatentMissing(wgmm, data);
         params = wgmm.mstepLatentMissingR(wgmm, data);
     end
