@@ -22,7 +22,9 @@ function varargout = recon(wg, data, method, varargin)
             varargout{1} = reconpca(wg, Y, W, inputs.percentile);
             
         case 'latentMissing'
-            warning('LM reconstruction currenty uses most likely cluster, not wsum')
+            if wg.opts.verbose > 0
+                warning('LM reconstruction currenty uses most likely cluster, not wsum')
+            end
             
             % extract the data
             Y = data.Y;
@@ -41,12 +43,15 @@ function varargout = recon(wg, data, method, varargin)
             sigmaPrevCell = dimsplit(3, wg.params.sigma);
             
             % get maximum cluster assignment via e-step. Make sure the Estep is done in LM
-            name = wg.opts.model.name;
-            wg.opts.model.name = 'latentMissing';
-            [lll, expect] = wg.estep(data);
-            lll
+            if strcmp(wg.opts.model.name, 'latentMissingR')
+                modelname = wg.opts.model.name;
+                wg.opts.model.name = 'latentMissing';
+            end
+            [~, expect] = wg.estep(data);
             maxk = argmax(expect.gammank, [], 2);
-            wg.opts.model.name = name;
+            if strcmp(wg.opts.model.name, 'latentMissingR')
+                wg.opts.model.name = modelname;
+            end
             
             % prepare output variables
             yRecon = Y;
@@ -82,9 +87,6 @@ function varargout = recon(wg, data, method, varargin)
             mi = argmax(expect.gammank, [], 2);
             
             % compute Xhat
-            muk = zeros(K, size(Y,2));
-            denom = zeros(K, size(Y,2));
-            S = zeros(dLow, dLow, size(Y,1), K);
             Xhat = zeros(size(Y,1), dLow, K);
             for i = 1:size(Y, 1)
                 obsIdx = data.W(i, :) == 1;
@@ -100,16 +102,6 @@ function varargout = recon(wg, data, method, varargin)
                     ltl = L'*L;
                     S_ki = eye(dLow) - ltl / (eye(dLow) + ltl);
                     X_ki = S_ki/sigmasq_t * (w' * (yobs - wg.params.mu(k, obsIdx))');
-                    
-                    % update mu_k
-                    muterm = yobs' - w * X_ki;
-                    muk(k, obsIdx) = muk(k, obsIdx) + expect.gammank(i, k) .* muterm';
-                    
-                    % denominator for mu_k
-                    denom(k, obsIdx) = denom(k, obsIdx) + expect.gammank(i, k);
-                    
-                    % update large matrices
-                    S(:,:,i,k) = S_ki;
                     Xhat(i,:,k) = X_ki';
                 end
             end
@@ -129,6 +121,60 @@ function varargout = recon(wg, data, method, varargin)
             end
             varargout{1} = yRecon;
             varargout{2} = xReconChk;
+            
+        case 'wLatentSubspace'
+            %error('Need to re-look over.');
+            K = data.K;
+            Y = data.Y;
+            
+            [dHigh, dLow, ~] = size(wg.params.W);
+            
+            [lll, expect] = wg.estep(data);
+            % maxk = argmax(expect.gammank, [], 2);
+            mi = argmax(expect.gammank, [], 2);
+            
+            % compute Xhat
+            Xhat = zeros(size(Y,1), dLow, K);
+            for i = 1:size(Y, 1)
+                obsIdx = data.W(i, :) == 1;
+                yobs = Y(i, obsIdx);
+                wtobs = data.wts(i, obsIdx);
+                if sum(wtobs) == 0, 
+                    continue
+                end
+
+                for k = 1:K
+                    sigmasq_t = wg.params.sigmasq(k);
+                    w = wg.params.W(obsIdx, :, k);
+                    L = w ./ sqrt(sigmasq_t);
+                    
+                    % ppca() uses Sherman-Morrison, probably because it's safer?
+                    % S_ki = inv(L * L' + eye(dLow));
+                    ltl = L'*L;
+                    S_ki = eye(dLow) - ltl / (eye(dLow) + ltl);
+                    X_ki = S_ki/sigmasq_t * (w' * (wtobs .* (yobs - wg.params.mu(k, obsIdx)))') ./ mean(wtobs);
+
+                    % update large matrices
+                    Xhat(i,:,k) = X_ki';
+                end
+            end
+            
+            yRecon = Y*0;
+            xReconChk = Y*0;
+
+            % recon y
+            for k = 1:K
+                w = wg.params.W(:,:,k);
+                
+                wwt = w'*w;
+                cRecon = w / (wwt) * (wwt + wg.params.sigmasq(k) * eye(dLow)) * Xhat(mi==k, :, k)';
+                yRecon(mi==k, :) = bsxfun(@plus, cRecon', wg.params.mu(k, :));
+                
+                xReconChk(mi==k, :) = bsxfun(@plus,  Xhat(mi==k, :, k) * w', wg.params.mu(k, :));
+            end
+            varargout{1} = yRecon;
+            varargout{2} = xReconChk;
+            
             
         case 'latentMissingR'
             
@@ -165,7 +211,7 @@ function varargout = recon(wg, data, method, varargin)
             misThr = 0.99;
             % obsThr = 0.97; % should use for obsIdx?    
             
-            rrerr = 0;
+            rrerr = [];
             yRecon = cell(1, N);
             for i = 1:N
                 k = maxk(i);
@@ -200,39 +246,58 @@ function varargout = recon(wg, data, method, varargin)
                 
                 % put back into output
                 yRecon{i} = ySubjk;
-                
+%                 if rand < 0.05
+%                     disp('hi');
+%                 end
                 
                 
                 
                 % test recon from recon.
-                obsIdx = data.rWeight{i} > misThr & ~ydsmasks{i};
-%                 misIdx = data.rWeight{i} > misThr & ydsmasks{i};
+%                 obsIdx = ydsmasksFullVoxels{i};
+%                 
+%                 q = data.yrotmasks{i};
+%                 q(1:round(size(q, 1)/2), :, :) = false;
+%                 q = q(data.yrotmasks{i})';
+%                 
+% %                 f = find(obsIdx);
+% %                 f = f(1:round(numel(f)/4));
+% %                 q = false(size(obsIdx));
+% %                 q(f) = true;
+%                 % q = isodd(1:numel(obsIdx));
+%                 misIdx = obsIdx & q;
+%                 obsIdx = obsIdx & ~q;
+%                 
+%                 ySubjObs = yRecon{i}(obsIdx);
+%                 
+%                 % prepare the rotation matrices
+%                 r = RdataTrans(:, R.idx{i})';
+%                 robs = r(obsIdx, :);
+%                 rmis = r(misIdx, :);
+%                 sigmaPrev = sigmaPrevCell{k};
+%                 srobs = (sigmaPrev * robs');
+%                 oosigmak = robs * srobs;
+%                 mosigmak = rmis * srobs;
+%                 mmsigmak = rmis * (sigmaPrev * rmis');
+%                 muSubj = mu * r';
+%                 
+%                 % reconstruct "original" data
+%                 q = muSubj(misIdx) + (mosigmak * (oosigmak \ (ySubjObs - muSubj(obsIdx))'))';
+% %                 yRecon{i} = ySubj * nan;
+% %                 yRecon{i}(misIdx) = q;
+%                 % compute error compared to "original" data
+%                 rrerr = [rrerr; msd(q(:), ySubj(misIdx(:))')]; % reconstructed values
+% %                 z = q - muSubj(misIdx);
+% %                 rrerr = [rrerr; z(:)' * (mmsigmak \ z(:))];
                 
-                q = rand(size(obsIdx)) < 0.5;
-                misIdx = obsIdx & ~q;
-                obsIdx = obsIdx & q;
-
-                
-                ySubjObs = yRecon{i}(obsIdx);
-                
-                % prepare the rotation matrices
-                r = RdataTrans(:, R.idx{i})';
-                robs = r(obsIdx, :);
-                rmis = r(misIdx, :);
-                sigmaPrev = sigmaPrevCell{k};
-                srobs = (sigmaPrev * robs');
-                oosigmak = robs * srobs;
-                mosigmak = rmis * srobs;
-                muSubj = mu * r';
-                
-                % reconstruct "original" data
-                q = muSubj(misIdx) + (mosigmak * (oosigmak \ (ySubjObs - muSubj(obsIdx))'))';
-                % compute error compared to "original" data
-                rrerr = rrerr + sum(abs(q(:) - ySubj(misIdx(:))')); % reconstructed values
             end
             varargout{1} = yRecon;
             varargout{2} = expect.gammank;
-            fprintf('LogLike: %3.2f, rrerr: %3.2f\n', lll, rrerr);
+            fprintf('LogLike: %3.2f, rrerr: %3.2f, medrerr: %3.4f\n', lll, sum(rrerr), median(rrerr));
+            
+%             z = double(misIdx);
+%             z(misIdx) = q;
+%             view3Dopt({ySubj, z}, 'voxMask', data.yrotmasks{i});
+%             figure(); hist(rrerr, 20); %, linspace(0, 0.3, 20));
             
         otherwise 
             error('unknown method');
