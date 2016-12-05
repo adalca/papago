@@ -195,7 +195,7 @@ function [wgDs, vols] = subvol2hierLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMa
             % prepare top-down volumes
             scAtlPatchSize = scSizes(si+1);
             blurSigma = 1/3 * patchSize ./ minPathSize;
-            newvols = hierarchyPrepVolumesSimple(dsSubvols, wtSubvols, isoSubvols, ...
+            newvols = hierarchyPrepVolumesSimple(dsSubvols, wtSubvols, ...
                 blurSigma, blurWindow, diffPad, patchSize, scAtlPatchSize);
 
             % resize reconstructed volumes up
