@@ -196,23 +196,38 @@ function logpin = logpost(wg, data)
             logpi = log(wg.params.pi);
             logpin = bsxfun(@plus, logpi, logmvn);
             
-        case 'latentSubspace'
+        case {'latentSubspace'}
             % missing variables. 
             assert(islogical(wts) | all(wts(:) == 0 | wts(:) == 1));
-            
-            % need to compute sigma since it's not a main parameter in LS.
-%             sigma = zeros(dHigh, dHigh, K);
-%             for k = 1:K
-%                 sigma(:,:,k) = wg.params.W(:,:,k) * wg.params.W(:,:,k)' + wg.params.sigmasq(k) .* eye(dHigh);
-%             end
-            
-            % might be unnecessary to check for PDness here due to the formula of sigma in the LS case
-            % [params.sigma, params.sigmainv] = wgmm.sigmafull(wg, sigma);
-            
+           
             logmvn = zeros(N, K);
             for i = 1:N
                 % extract the observed entry indices for this datapoint
                 obsIdx = wts(i, :) == 1;
+
+                % extract the observed data, mu and sigma entries
+                yobs = Y(i, obsIdx);
+                muobs = wg.params.mu(:, obsIdx);
+                % sigmaobs = sigma(obsIdx, obsIdx, :);
+                
+                % compute compute the multivariate normal for each k via logN(y^Oi; mu^Oi, sigma^Oi)
+                % lmvn = wgmm.logmvnpdf(yobs, muobs, sigmaobs); % older and slower
+                %lmvn = experimentalLogmvnpdf(yobs, muobs, sigmaobs); % new method, using ECMOBJ basically.
+                Wobs = wg.params.W(obsIdx, :, :);
+                lmvn = experimentalLogmvnpdfW(yobs, muobs, Wobs, wg.params.sigmasq);
+                logmvn(i, :) = lmvn;
+            end
+            
+            % finally compute the posterior
+            logpi = log(wg.params.pi);
+            logpin = bsxfun(@plus, logpi, logmvn);
+        case {'wLatentSubspace'}
+            % missing variables. 
+            
+            logmvn = zeros(N, K);
+            for i = 1:N
+                % extract the observed entry indices for this datapoint
+                obsIdx = wts(i, :) > 0.5;
 
                 % extract the observed data, mu and sigma entries
                 yobs = Y(i, obsIdx);
