@@ -16,9 +16,20 @@ function wg = init(wg, data, varargin)
     switch wg.opts.init.method
         
         % initialize from another wgmm
-        case 'wgmm' 
+        case {'wgmm', 'wgmmr', 'wgmmI'}
             wg.params = varargin{1}.wgmm.params;
-            wg.expect = varargin{1}.wgmm.expect;
+            % wg.expect = varargin{1}.wgmm.expect;
+            
+            if strcmp(wg.opts.init.method, 'wgmmr')
+                wg.params.W = wg.params.W + randn(size(wg.params.W)) * 0.05;
+                wg.params.sigma = wg.wv2sigma();
+            end
+            
+            if strcmp(wg.opts.init.method, 'wgmmI')
+                e = repmat(eye(D), [1,1,K]);
+                wg.params.W = wg.params.W + e(:, 1:size(wg.params.W, 2), :);
+                wg.params.sigma = wg.wv2sigma();
+            end            
             
             if strcmp('latentSubspace', wg.opts.model.name) && ...
                 (~isfield(wg.params, 'W') || size(wg.params.W, 2) ~= wg.opts.model.dopca)
@@ -33,6 +44,8 @@ function wg = init(wg, data, varargin)
                 wg.params.W = W;
                 wg.params.sigmasq = v;
             end
+            
+            
             
         % initialize from a matlab gmm
         case 'gmm'
