@@ -71,9 +71,69 @@ function varargout = recon(wg, data, method, varargin)
                 
                 % reconstruct y.
                 yRecon(i, ~obsIdx) = mu(~obsIdx) + (mosigmak * (oosigmak \ (yobs - mu(obsIdx))'))';
+                
+                1;
             end
             varargout{1} = yRecon;
             varargout{2} = expect.gammank;
+
+        case 'latentSubspaceR'
+            
+            % data
+            R = data.R;                     % R rotations from atlas to subject space.
+            Y = data.Y;                     % data in subject space
+            ydsmasks = data.ydsmasks;       % down-sample mask cell -- (should be "planes" in subject space)
+            ydsmasksFullVoxels = data.ydsmasksFullVoxels;
+            N = numel(Y);
+            assert(data.K == size(wg.params.mu,1));
+            [~, dLow, ~] = size(wg.params.W);
+            
+            % get maximum cluster assignment via e-step. Make sure the Estep is done in LMR
+            name = wg.opts.model.name;
+            wg.opts.model.name = 'latentMissingR';
+            [lll, expect] = wg.estep(data);
+            maxk = argmax(expect.gammank, [], 2);
+            wg.opts.model.name = name;
+            
+            % indexing in columns is *much* faster (esp. for sparse matrices) than indexing in rows -- so we
+            % transpose the R data matrix and index in columns instead of rows.
+            RdataTrans = R.data';
+            
+            % compute Xhat
+            yRecon = cell(1, N);
+            yReconChk = cell(1, N);
+            for i = 1:N
+                k = maxk(i);
+                
+                % get the data
+                obsIdx = ydsmasksFullVoxels{i};
+                ySubj = Y{i};
+                ySubjObs = ySubj(obsIdx);
+                
+                % compute statistics
+                r = RdataTrans(:, R.idx{i})';
+                v = wg.params.sigmasq(k);
+                w = r * wg.params.W(:, :, k);
+                wobs = w(obsIdx, :);
+                L = wobs ./ sqrt(v);
+                muSubj = r * wg.params.mu(k, :)';
+
+                % ppca() uses Sherman-Morrison, probably because it's safer?
+                % S_ki = inv(L * L' + eye(dLow));
+                ltl = L'*L;
+                S_ki = eye(dLow) - ltl / (eye(dLow) + ltl);
+                X_ki = S_ki/v * (wobs' * (ySubjObs - muSubj(obsIdx)')');
+                
+                % reconstruct 
+                wwt = w' * w;
+                yRecon{i} = muSubj' + (w / (wwt) * (wwt + v * eye(dLow)) * X_ki)';
+%                 yRecon{i}(obsIdx) = ySubjObs;
+                yReconChk{i} = muSubj' + X_ki' * w';
+            end
+            assert(all(cellfun(@isclean, yRecon)));
+            assert(all(cellfun(@isclean, yReconChk)));
+            varargout{1} = yRecon;
+            varargout{2} = yReconChk;
             
         case 'latentSubspace'
             %error('Need to re-look over.');
@@ -93,18 +153,21 @@ function varargout = recon(wg, data, method, varargin)
                 yobs = Y(i, obsIdx);
 
                 for k = 1:K
-                    sigmasq_t = wg.params.sigmasq(k);
+                    v = wg.params.sigmasq(k);
                     w = wg.params.W(obsIdx, :, k);
-                    L = w ./ sqrt(sigmasq_t);
+                    L = w ./ sqrt(v);
                     
                     % ppca() uses Sherman-Morrison, probably because it's safer?
                     % S_ki = inv(L * L' + eye(dLow));
                     ltl = L'*L;
                     S_ki = eye(dLow) - ltl / (eye(dLow) + ltl);
-                    X_ki = S_ki/sigmasq_t * (w' * (yobs - wg.params.mu(k, obsIdx))');
+                    X_ki = S_ki/v * (w' * (yobs - wg.params.mu(k, obsIdx))');
                     Xhat(i,:,k) = X_ki';
+                    
+                    1;
                 end
             end
+            assert(isclean(Xhat) && ~all(Xhat(:)==0), 'Xhat is not clean :(');
             
             yRecon = Y*0;
             xReconChk = Y*0;
@@ -144,15 +207,15 @@ function varargout = recon(wg, data, method, varargin)
                 end
 
                 for k = 1:K
-                    sigmasq_t = wg.params.sigmasq(k);
+                    v = wg.params.sigmasq(k);
                     w = wg.params.W(obsIdx, :, k);
-                    L = w ./ sqrt(sigmasq_t);
+                    L = w ./ sqrt(v);
                     
                     % ppca() uses Sherman-Morrison, probably because it's safer?
                     % S_ki = inv(L * L' + eye(dLow));
                     ltl = L'*L;
                     S_ki = eye(dLow) - ltl / (eye(dLow) + ltl);
-                    X_ki = S_ki/sigmasq_t * (w' * (wtobs .* (yobs - wg.params.mu(k, obsIdx)))') ./ mean(wtobs);
+                    X_ki = S_ki/v * (w' * (wtobs .* (yobs - wg.params.mu(k, obsIdx)))') ./ mean(wtobs);
 
                     % update large matrices
                     Xhat(i,:,k) = X_ki';
@@ -190,7 +253,6 @@ function varargout = recon(wg, data, method, varargin)
             name = wg.opts.model.name;
             wg.opts.model.name = 'latentMissingR';
             [lll, expect] = wg.estep(data);
-            
             maxk = argmax(expect.gammank, [], 2);
             wg.opts.model.name = name;
             
