@@ -1,4 +1,4 @@
-function subvolReconFlexible(wgmmFile, atlSubvols, iniReconFile, subjVol, subjMask, interpMatData, subjoutFile)
+function subvolReconFlexible(wgmmFile, atlSubvols, iniReconFile, atlSubjVol, atlSubjMask, interpMatData, subjoutFile)
 %code for LSR recon:
 %
 % for each subvol
@@ -8,8 +8,8 @@ function subvolReconFlexible(wgmmFile, atlSubvols, iniReconFile, subjVol, subjMa
 %   output the subvol.
 
     % load in data
-    if ischar(subjVol) && sys.isfile(subjVol), subjVol = nii2vol(subjVol); end
-    if ischar(subjMask) && sys.isfile(subjMask), subjMask = nii2vol(subjMask); end
+    if ischar(atlSubjVol) && sys.isfile(atlSubjVol), atlSubjVol = nii2vol(atlSubjVol); end
+    if ischar(atlSubjMask) && sys.isfile(atlSubjMask), atlSubjMask = nii2vol(atlSubjMask); end
     if ischar(interpMatData) && sys.isfile(interpMatData), interpMatData = load(interpMatData); end
      
     % atlSubvols could be a list. if it is, recursively call subvolReconFlexible. Note this has to
@@ -25,7 +25,7 @@ function subvolReconFlexible(wgmmFile, atlSubvols, iniReconFile, subjVol, subjMa
         assert(numel(atlFiles) == numel(wgmmFiles), ...
             'The number of subvolume files does not match the number of wgmm files');
         for fi = 1:numel(atlFiles)
-            subvolReconFlexible(wgmmFiles{fi}, atlFiles{fi}, iniReconFile, subjVol, subjMask, interpMatData, outFiles{fi});
+            subvolReconFlexible(wgmmFiles{fi}, atlFiles{fi}, iniReconFile, atlSubjVol, atlSubjMask, interpMatData, outFiles{fi});
         end
     end
     
@@ -46,7 +46,7 @@ function subvolReconFlexible(wgmmFile, atlSubvols, iniReconFile, subjVol, subjMa
     % get rotation data for this subvolume. do NOT pass in an output file -- we just want this
     % returned. This loads a signle volume, despite the plural (e.g. subvols) in the variable names.
     [interpData.subVols, interpData.subVolMasks, interpData.atl2SubjInterpMat, interpData.subj2AtlInterpMat] = ...
-        vol2subvolInterpData(interpMatData, subjVol, subjMask, reconLoc, atlSubvolSize);
+        vol2subvolInterpData(interpMatData, atlSubjVol, atlSubjMask, reconLoc, atlSubvolSize);
     
     % get R matrices.
     interpDataPatches = interpData2patchRotData(interpData, subvolSize, 0, atlPatchSize, 1);
