@@ -8,7 +8,7 @@ function [str]=num2bank(num)
 end
 function [str]=num2bankScalar(num)
      num=floor(num*100)/100;
-     str = num2str(num);
+     str = sprintf('%0.2f', num); %str = num2str(num); % avd mod
      k=find(str == '.', 1);
      if(isempty(k))
          str=[str,'.00'];
