@@ -79,6 +79,8 @@ function varargout = recon(wg, data, method, varargin)
 
         case 'latentSubspaceR'
             
+            misThr = 0.97;
+            
             % data
             R = data.R;                     % R rotations from atlas to subject space.
             Y = data.Y;                     % data in subject space
@@ -129,9 +131,19 @@ function varargout = recon(wg, data, method, varargin)
                 yRecon{i} = muSubj' + (w / (wwt) * (wwt + v * eye(dLow)) * X_ki)';
 %                 yRecon{i}(obsIdx) = ySubjObs;
                 yReconChk{i} = muSubj' + X_ki' * w';
+                
+
             end
             assert(all(cellfun(@isclean, yRecon)));
             assert(all(cellfun(@isclean, yReconChk)));
+            
+            for i = 1:N
+                % put back nans where we're not sure.
+                nanIdx = ~ydsmasksFullVoxels{i} & ~(data.rWeight{i} > misThr);
+                yRecon{i}(nanIdx) = nan;
+                yReconChk{i}(nanIdx) = nan;
+            end
+            
             varargout{1} = yRecon;
             varargout{2} = yReconChk;
             
@@ -270,7 +282,7 @@ function varargout = recon(wg, data, method, varargin)
             % more than misThr weight of the atlas space voxels. Then we only use those voxels (and the
             % observed voxels) in computing Yhat (the re-estimated Y in atlas space).
             warning('Choice of which voxels to include in rotation are uncertain.');
-            misThr = 0.99;
+            misThr = 0.97;
             % obsThr = 0.97; % should use for obsIdx?    
             
             rrerr = [];
@@ -281,8 +293,8 @@ function varargout = recon(wg, data, method, varargin)
                 % extract the observed y values in original space.
                 obsIdx = ydsmasksFullVoxels{i};
 %                 obsIdx = ydsmasks{i};
-%                 misIdx = data.rWeight{i} > misThr & ~ydsmasks{i}; % used to be just ~obsIdx
-                misIdx = ~obsIdx;
+                misIdx = data.rWeight{i} > misThr & ~ydsmasks{i}; % used to be just ~obsIdx
+%                 misIdx = ~obsIdx;
                 ySubj = Y{i};
                 ySubjObs = ySubj(obsIdx);
                 
@@ -308,6 +320,8 @@ function varargout = recon(wg, data, method, varargin)
                 
                 % put back into output
                 yRecon{i} = ySubjk;
+                yRecon{i}(~misIdx & ~ydsmasks{i}) = nan;
+                
 %                 if rand < 0.05
 %                     disp('hi');
 %                 end
