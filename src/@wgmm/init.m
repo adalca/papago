@@ -710,16 +710,13 @@ function wg = init(wg, data, varargin)
             assert(dN >= 1);
             % dHigh = size(data.Y, 2);
             
-            % prep init data
-            params = struct();
-            params.mu = initArgs.wgmm.params.mu;
-            params.sigma = initArgs.wgmm.params.sigma;
-            params.pi = initArgs.wgmm.params.pi;
-            
             wginit_prev = [];
             
             for di = 1:numel(initArgs.dopcas)
                 pca = initArgs.dopcas(di);
+                
+                % init params
+                params = wgz.params;
                 
                 % get parameters for new run from prev params
                 params.W = []; params.v = [];
@@ -747,6 +744,9 @@ function wg = init(wg, data, varargin)
                     'MinIter', wg.opts.minIter, 'TolFun', wg.opts.TolFun);
                 wgz.stats(1).wginit = wginit_prev;
                 wginit_prev = wgz;
+                
+                assert(~isfield(wgz.params, 'sigma'))
+                wgz.params.sigma = wgz.wv2sigma;
             end
             
             % do nothing.
