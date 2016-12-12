@@ -25,7 +25,7 @@ function fwgmm = fit(data, varargin)
         ll = [];
         
         % First E step and ll
-        if opts.maxIter > 0 % only compute expectation and ll
+        if wg.opts.maxIter > 0 % only compute expectation and ll
             warning('SKIPPING E STEP');
 %             [ll(1), wg.expect] = wg.estep(data);
             ll(1) = wg.estep(data);
@@ -41,8 +41,8 @@ function fwgmm = fit(data, varargin)
         
         % Iterative E.M. updates
         ct = 1;
-        opts.minIter
-        while ct < opts.minIter || ((llpchange > opts.TolFun) && ct <= opts.maxIter)
+        wg.opts.minIter
+        while ct < wg.opts.minIter || ((llpchange > wg.opts.TolFun) && ct <= wg.opts.maxIter)
             itertic = tic;
 
             % recluster if necessary

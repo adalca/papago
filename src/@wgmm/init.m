@@ -705,7 +705,7 @@ function wg = init(wg, data, varargin)
         case {'latentSubspace-iterds', 'latentSubspace-iterds-zeromean', 'latentSubspace-iterds-randv'}
             initArgs = varargin{1};
             wgz = initArgs.wgmm;
-            initMethod = wgz.opts.init.method;
+            initMethod = wg.opts.init.method;
             dN = numel(initArgs.dopcas);
             assert(dN >= 1);
             % dHigh = size(data.Y, 2);
@@ -719,7 +719,7 @@ function wg = init(wg, data, varargin)
                 params = wgz.params;
                 
                 % get parameters for new run from prev params
-                params.W = []; params.v = [];
+                params.W = []; params.sigmasq = [];
                 for k = 1:K
                     [params.W(:,:,k), params.sigmasq(k)] = sigma2modelParams(params.sigma(:,:,k), pca);
                 end
