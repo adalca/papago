@@ -26,7 +26,9 @@ function fwgmm = fit(data, varargin)
         
         % First E step and ll
         if opts.maxIter > 0 % only compute expectation and ll
-            [ll(1), wg.expect] = wg.estep(data);
+            warning('SKIPPING E STEP');
+%             [ll(1), wg.expect] = wg.estep(data);
+            ll(1) = wg.estep(data);
         else 
             ll = 0;
         end
@@ -39,7 +41,8 @@ function fwgmm = fit(data, varargin)
         
         % Iterative E.M. updates
         ct = 1;
-        while (llpchange > opts.TolFun) && ct <= opts.maxIter
+        opts.minIter
+        while ct < opts.minIter || ((llpchange > opts.TolFun) && ct <= opts.maxIter)
             itertic = tic;
 
             % recluster if necessary
@@ -53,8 +56,11 @@ function fwgmm = fit(data, varargin)
             
             % E step
             etic = tic;
-            [ll(ct + 1), expect] = wg.estep(data);
-            wg.expect = expect;
+            warning('SKIPPING E STEP');
+%             [ll(ct + 1), expect] = wg.estep(data);
+%             wg.expect = expect;
+            ll(ct + 1) = wg.estep(data);
+            
             wg.stats(ct+1).expect = wg.expect;
             wg.stats(ct+1).etoc = toc(etic);
             
@@ -115,6 +121,7 @@ function [data, opts] = parseInputs(data, varargin)
     
     % fitting options
     p.addParameter('maxIter', dopts.maxIter, @isscalar);
+    p.addParameter('minIter', dopts.minIter, @isscalar);
     p.addParameter('replicates', dopts.replicates, @isscalar);
     p.addParameter('reclusterThreshold', dopts.reclusterThreshold, @isscalar);
     p.addParameter('reclusterMethod', dopts.reclusterMethod, @isscalar);

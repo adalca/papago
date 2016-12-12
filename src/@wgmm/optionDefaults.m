@@ -5,6 +5,7 @@ function opts = optionDefaults()
     opts.init.method = 'exemplar';
     opts.replicates = 10;
     opts.maxIter = 10;
+    opts.minIter = 0;
     opts.regularizationValue = 1e-7;
     opts.reclusterThreshold = 100;
     opts.reclusterMethod = 'splitLargest';
