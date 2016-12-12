@@ -734,6 +734,22 @@ function wg = init(wg, data, varargin)
                     params.sigmasq = rand(1, K);
                 end
                 
+                mi = argmax(wgz.expect.gammank, [], 2);
+                for k = 1:K
+                    kdata = struct('Y', data.Y(mi == k, :), 'W', data.W(mi == k, :), 'K', 1);
+                    kparams = struct('mu', params.mu(k, :), 'W', params.W(:,:,k), 'pi', 1, 'sigmasq', params.sigmasq(k));
+                    kwginit = wgmm(initArgs.wgmm.opts, kparams);
+                    wgzk = wgmmfit(kdata, ...
+                        'modelName', 'latentSubspace', 'modelArgs', struct('dopca', pca), ...
+                        'init', 'wgmm', 'initArgs', struct('wgmm', kwginit), ...
+                        'verbose', wg.opts.verbose, 'replicates', 1, 'MaxIter', 5, ...
+                        'MinIter', 3, 'TolFun', wg.opts.TolFun);
+                    
+                    params.mu(k, :) = wgzk.params.mu(k, :);
+                    params.W(:, :, k) = wgzk.params.W(:, :, k);
+                    params.sigmasq(:, :, k) = wgzk.params.sigmasq(:, :, k);
+                end
+                
                 wginit = wgmm(initArgs.wgmm.opts, params);
                 wginit.expect = wgz.expect;
                 
