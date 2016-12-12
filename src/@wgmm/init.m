@@ -745,9 +745,9 @@ function wg = init(wg, data, varargin)
                         'verbose', wg.opts.verbose, 'replicates', 1, 'MaxIter', 5, ...
                         'MinIter', 3, 'TolFun', wg.opts.TolFun);
                     
-                    params.mu(k, :) = wgzk.params.mu(k, :);
-                    params.W(:, :, k) = wgzk.params.W(:, :, k);
-                    params.sigmasq(:, :, k) = wgzk.params.sigmasq(:, :, k);
+                    params.mu(k, :) = wgzk.params.mu;
+                    params.W(:, :, k) = wgzk.params.W;
+                    params.sigmasq(:, :, k) = wgzk.params.sigmasq;
                 end
                 
                 wginit = wgmm(initArgs.wgmm.opts, params);
