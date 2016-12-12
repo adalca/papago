@@ -149,6 +149,7 @@ function params = mstepLatentSubspace(wg, data)
     end
         
     % update parameters
+    params = struct();
     params.mu = mu;
     params.W = newW;
     params.sigmasq = newsigmasq;
