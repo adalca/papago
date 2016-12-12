@@ -753,8 +753,8 @@ function wg = init(wg, data, varargin)
             wg.params = wgz.params;
             wg.expect = wgz.expect;
             wg.stats = wgz.stats;
-            wg.opts.maxIters = 0;
-            wg.opts.minIters = -1;
+            wg.opts.maxIter = 0;
+            wg.opts.minIter = -1;
 
 %             
 %             % dopca has to be adjusted in three palces: 
