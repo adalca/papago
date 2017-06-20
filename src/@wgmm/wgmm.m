@@ -117,7 +117,7 @@ classdef wgmm < handle
         
         % helper functions for computing and correcting sigma.
         [sigma, sigmainv, sigmacore, sigmarecon, sigmamerge] = sigmafull(mu, X, W, K, mthods, opts, wg);
-        sigmar = sigmarecon(sigma, wtw, method);
+        sigmar = sigmarecon(sigma, wtw, method, sriso);
         sigma = sigmacore(mu, X, W, K, gammank, coremethod, coreargs, wg);
         sigma = sigmamerge(sigmac, sigmar, wtw, method, varargin);
         

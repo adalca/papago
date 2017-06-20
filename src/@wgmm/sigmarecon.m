@@ -1,4 +1,4 @@
-function sigmar = sigmarecon(sigma, wtw, method)
+function sigmar = sigmarecon(sigma, wtw, method, sriso)
 % SIGMARECON reconstruct weakly voted covariance matrix sigma
 %
 % sigmar = sigmarecon(sigma, wtw, method) compute sigma reconstruction (due to areas of low weight)
@@ -83,6 +83,119 @@ function sigmar = sigmarecon(sigma, wtw, method)
             % ij = sub2ind(size(sigma), x{2}(:), mi(:));
             % 
             % sigmar = reshape(sigma(ii) .* sigma(ij) ./ d(mi(:))', size(sigma));
+            
+        case 'greedy2'
+            % greedy-1 but assuming wtw logical. Implemented slow.
+            %
+            % slow (double-loop) implementation:
+            thragr = 0.7;
+            
+            sigmar = sigma * nan;
+            dsigma = diag(sigma);
+            for i = 1:size(sigma, 1)
+%                 i
+                for j = 1:size(sigma, 2) 
+                    if wtw(i,j), continue, end
+                    
+                    % find all entries that have corr with both i and j
+                    fk = find(sum(wtw([i,j], :), 1) == 2);
+                    if (numel(fk) == 0)
+%                         v = ind2subvec([9,9,9], [i;j]);
+%                         s = sprintf('did not find common voxel btw [%d,%d,%d] and [%d,%d,%d]', ...
+%                             v(1,:), v(2,:));
+                        %warning(s);
+                        continue
+                    end
+                    
+                    % find entry that is highly correlated with i
+                    teststati = sigma(i, fk) ./ sqrt(dsigma(fk)');
+                    [maxi, mi] = max(teststati); % this is the voxel that correlates with i the most (or very well?)
+                    teststatj = sigma(j, fk) ./ sqrt(dsigma(fk)');
+                    [maxj, mj] = max(teststatj); % this is the voxel that correlates with i the most (or very well?)
+                    
+                    if maxi/sqrt(sigma(i,i)) < thragr && maxj/sqrt(sigma(j,j)) < thragr
+                        continue;
+                    end
+                    
+%                     sum(teststati/sqrt(sigma(i,i)) > thragr) 
+%                     sum(teststatj/sqrt(sigma(j,j)) > thragr) 
+                    
+                    if maxi > maxj
+                        maxidx = mi;
+%                         sigmar(i, j) = sigma(j, fk(maxidx));
+                    else
+                        maxidx = mj;
+%                         sigmar(i, j) = sigma(i, fk(maxidx));
+                    end
+                    sigmar(i, j) = sigma(i, fk(maxidx)) .* sigma(j, fk(maxidx)) ./ sigma(fk(maxidx), fk(maxidx));
+                end
+            end
+            
+        case 'fit1'
+            % slow (double-loop) implementation:
+            warning('using fit1. Requires wtw to be logical')
+            assert(islogical(wtw))
+            s = sigma;
+            sigma(~wtw) = nan;
+            fprintf('nans: %d', sum(isnan(sigma(:))))
+            sigmar = sigma * 0;
+            for i = 1:size(sigma, 1)
+                for j = i:size(sigma, 2) 
+                    if wtw(i,j), continue, end
+                    
+                    % want to fill in sigma(i,j), but can't directly
+                    % we'll find a k that both i and j have an entry with.
+                    fk = find(sum(wtw([i,j], :), 1) == 2);
+                    if (numel(fk) == 0)
+                        v = ind2subvec([9,9,9], [i;j]);
+                        s = sprintf('did not find common voxel btw [%d,%d,%d] and [%d,%d,%d]', ...
+                            v(1,:), v(2,:));
+                        warning(s);
+                        continue
+                    end
+                    
+                    % find k that's most correlated with i or j
+                    
+                    err_t = inf;
+%                     c = []
+                    for ki = 1:numel(fk)
+                        k = fk(ki);
+%                     [v, ki] = max(sigma([i,j], fk), [], 2);
+%                     [v, kii] = max(v); k = fk(ki(kii));
+                    m = sigma([i,j,k], [i,j,k]);
+
+%                     m = sigma([i,j,fk], [i,j,fk]);
+%                     d = diag(reshape(1:numel(m), size(m)));
+%                     mt = m(d);
+%                     m(3:end, 3:end) = nan;
+%                     m(d) = mt;
+                                      
+                    % form a 3x3 matrix: [i,k,j] x [i,k,j]
+                        [q, err, iters, err_ch] = matrixSubspaceWithMissingData(m, 1); % 3x1 fit
+%                         w = q * q';
+%                         c = w(1,2);
+                        if err < err_t
+                          q_fin = q;
+                          err_t = err;
+                          kopt = k;
+                          itersopt = iters;
+                        end
+                    end
+                    w = q_fin * q_fin';
+                    
+                    if exist('sriso', 'var')
+                        t = sriso([i,j,kopt ], [i,j,kopt ]);
+                        [sigma([i,j,kopt ], [i,j,kopt ]), w, t]
+                        itersopt
+%                         mean(c)
+                    end
+                    
+                    sigmar(i,j) = w(1,2);
+                    sigmar(j,i) = w(2,1);
+                end
+            end
+            fprintf('Nans after hack: %d. Filling in with original sigma', sum(isnan(sigmar(:))))
+%             sigmar(isnan(sigmar(:))) = s(isnan(sigmar(:)));
 
         case 'none'
             sigmar = zeros(size(sigma));

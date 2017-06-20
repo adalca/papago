@@ -93,6 +93,7 @@ function varargout = recon(wg, data, method, varargin)
             % get maximum cluster assignment via e-step. Make sure the Estep is done in LMR
             name = wg.opts.model.name;
             wg.opts.model.name = 'latentMissingR';
+            warning('TRY TO DO non-R based expectation!');
             [lll, expect] = wg.estep(data);
             maxk = argmax(expect.gammank, [], 2);
             wg.opts.model.name = name;
@@ -106,6 +107,7 @@ function varargout = recon(wg, data, method, varargin)
             yReconChk = cell(1, N);
             for i = 1:N
                 k = maxk(i);
+%                 k=1;
                 
                 % get the data
                 obsIdx = ydsmasksFullVoxels{i};
@@ -131,6 +133,13 @@ function varargout = recon(wg, data, method, varargin)
                 yRecon{i} = muSubj' + (w / (wwt) * (wwt + v * eye(dLow)) * X_ki)';
 %                 yRecon{i}(obsIdx) = ySubjObs;
                 yReconChk{i} = muSubj' + X_ki' * w';
+%                 yRecon{i} = yReconChk{i};
+
+                if i == 100
+                    disp('ah');
+                    % view3Dopt({yRecon{i},ySubj,obsIdx*1, muSubj}, 'voxMask', data.yrotmasks{i});
+                    % view3Dopt(dimsplit(2, w), 'voxMask', data.yrotmasks{i});
+                end
                 
 
             end
@@ -146,6 +155,7 @@ function varargout = recon(wg, data, method, varargin)
             
             varargout{1} = yRecon;
             varargout{2} = yReconChk;
+            varargout{3} = lll;
             
         case 'latentSubspace'
             %error('Need to re-look over.');
@@ -368,6 +378,7 @@ function varargout = recon(wg, data, method, varargin)
             end
             varargout{1} = yRecon;
             varargout{2} = expect.gammank;
+            varargout{3} = lll;
             fprintf('LogLike: %3.2f, rrerr: %3.2f, medrerr: %3.4f\n', lll, sum(rrerr), median(rrerr));
             
 %             z = double(misIdx);

@@ -7,6 +7,10 @@ function logpin = logpost(wg, data)
     % prepare convenient variables
     Y = data.Y;
     if isfield(data, 'W'), wts = data.W; end
+    if isfield(data, 'estepW') && numel(wg.stats) < 10
+        warning('estep hack (top)'); 
+        wts = data.estepW == 1; 
+    end
     [N, dHigh] = size(Y);
     K = size(wg.params.mu, 1);
     
@@ -196,11 +200,30 @@ function logpin = logpost(wg, data)
             logpi = log(wg.params.pi);
             logpin = bsxfun(@plus, logpi, logmvn);
             
-        case {'latentSubspace'}
-            % missing variables. 
-            assert(islogical(wts) | all(wts(:) == 0 | wts(:) == 1));
+        case {'latentSubspace', 'gpuLatentSubspace'}
+            
+            if strcmp(wg.opts.model.name, 'gpuLatentSubspace')
+                Y = data.gpuY;
+                wts = data.gpuW;
+                wg.params.mu = gpuArray(single(wg.params.mu));
+                wg.params.W = gpuArray(single(wg.params.W));
+                
+                warning('hack: e-step is not gpu-ized');
+                Y = gather(Y);
+                wts = gather(wts);
+                wg.params.mu = gather(wg.params.mu);
+                wg.params.W = gather(wg.params.W);
+                
+                logmvn = zeros(N, K, class(Y));
+            else
+                % missing variables. 
+                assert(islogical(wts) | all(wts(:) == 0 | wts(:) == 1));
+                logmvn = zeros(N, K);
+            end
+            
+            
            
-            logmvn = zeros(N, K);
+            
             for i = 1:N
                 % extract the observed entry indices for this datapoint
                 obsIdx = wts(i, :) == 1;
@@ -208,7 +231,7 @@ function logpin = logpost(wg, data)
                 % extract the observed data, mu and sigma entries
                 yobs = Y(i, obsIdx);
                 muobs = wg.params.mu(:, obsIdx);
-                % sigmaobs = sigma(obsIdx, obsIdx, :);
+                % sigmaobs = wg.params.sigma(obsIdx, obsIdx, :);
                 
                 % compute compute the multivariate normal for each k via logN(y^Oi; mu^Oi, sigma^Oi)
                 % lmvn = wgmm.logmvnpdf(yobs, muobs, sigmaobs); % older and slower
@@ -221,6 +244,7 @@ function logpin = logpost(wg, data)
             % finally compute the posterior
             logpi = log(wg.params.pi);
             logpin = bsxfun(@plus, logpi, logmvn);
+            
         case {'wLatentSubspace'}
             % missing variables. 
             
@@ -246,7 +270,54 @@ function logpin = logpost(wg, data)
             logpi = log(wg.params.pi);
             logpin = bsxfun(@plus, logpi, logmvn);
             
-        case {'latentMissingR'}
+        case 'latentSubspaceR'
+            warning('Still unsure of how to treat R and G at the edges. Need to fix this!');
+            
+            % extract useful data
+            R = data.R;
+            ydsmasks = data.ydsmasksFullVoxels; % only use the "absolutely" full voxels.
+            yorigs = data.Y;
+            
+            % indexing in columns is *much* faster (esp. for sparse matrices) than indexing in rows
+            % -- so we transpose the R data matrix and index in columns instead of rows.
+            RdataTrans = R.data';
+
+            % Prepare existing sigma as a K-by-1 cell. Indexing into a small cell is faster than
+            % indexing into a 3-D matrix [nData-by-nData-by-K], and since we access it this K times
+            % per iteration, it ends up mattering for our iterations.
+            wCell = dimsplit(3, wg.params.W); % split into cell due to faster matlab access
+            logmvn = zeros(N, K); tic;
+            for i = 1:N
+                % adding a bit of verbosity
+                if wg.opts.verbose >= 2 && mod((i-1), 5000) == 0, 
+                    fprintf('logpost: %d/%d %3.2fs\n', i, N, toc); tic; 
+                end
+                
+                % extract the observed entry indices for this datapoint
+                obsIdx = ydsmasks{i};
+                yobs = yorigs{i}(obsIdx);
+                r = RdataTrans(:, R.idx{i}(obsIdx))';
+                
+                % extract the observed data, mu and sigma entries
+                muobs = wg.params.mu * r';
+                
+                wobs = cell(K, 1);
+                for k = 1:K
+                    wobs{k} = r * wCell{k};
+                end
+                
+                lmvn = experimentalLogmvnpdfW(yobs, muobs, wobs, wg.params.sigmasq); 
+                logmvn(i, :) = lmvn;
+            end
+            if wg.opts.verbose >= 2
+                fprintf('logpost: %d/%d %3.2fs\n', i, N, toc);
+            end
+            
+            % finally compute the posterior
+            logpi = log(wg.params.pi);
+            logpin = bsxfun(@plus, logpi, logmvn);
+                
+        case 'latentMissingR'
             warning('Still unsure of how to treat R and G at the edges. Need to fix this!');
             warning('LMR E-Step: doing a trick or rotating data back in atlas space :(');
             
@@ -318,7 +389,11 @@ function obj = experimentalLogmvnpdf(yobs, muobs, sigmaobs)
 
     isc = iscell(sigmaobs);
 
-    obj = zeros(1, size(muobs, 1));
+    if strcmp(class(yobs), 'gpuArray')
+        obj = zeros(1, size(muobs, 1), 'single', 'gpuArray');
+    else
+        obj = zeros(1, size(muobs, 1));
+    end
     for k = 1:size(muobs, 1)
 
         ltp = log(2*pi);
@@ -344,10 +419,19 @@ end
 function obj = experimentalLogmvnpdfW(yobs, muobs, Wobs, v)
 
     isc = iscell(Wobs);
-    [dHigh, dLow, K] = size(Wobs);
+    if isc
+        K = numel(Wobs);
+        [dHigh, dLow] = size(Wobs{1});
+    else
+        [dHigh, dLow, K] = size(Wobs);
+    end
     ltp = log(2*pi);
 
-    obj = zeros(1, size(muobs, 1)) - 0.5 * numel(yobs) * ltp;
+    if isa(yobs, 'gpuArray')
+        obj = zeros(1, size(muobs, 1), 'single', 'gpuArray') - 0.5 * numel(yobs) * ltp;
+    else
+        obj = zeros(1, size(muobs, 1)) - 0.5 * numel(yobs) * ltp;
+    end
     
     % for each cluster;
     for k = 1:K
