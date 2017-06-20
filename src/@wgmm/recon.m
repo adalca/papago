@@ -101,6 +101,8 @@ function varargout = recon(wg, data, method, varargin)
             % transpose the R data matrix and index in columns instead of rows.
             RdataTrans = R.data';
             
+            rcondwarnings = 0;
+            
             % compute Xhat
             yRecon = cell(1, N);
             yReconChk = cell(1, N);
@@ -128,11 +130,22 @@ function varargout = recon(wg, data, method, varargin)
                 
                 % reconstruct 
                 wwt = w' * w;
-                yRecon{i} = muSubj' + (w / (wwt) * (wwt + v * eye(dLow)) * X_ki)';
+                if rcond(wwt) > 1e-4
+                    recon = muSubj' + (w / (wwt) * (wwt + v * eye(dLow)) * X_ki)';
+                else
+                    rcondwarnings = rcondwarnings + 1;
+                    recon = muSubj' + X_ki' * w';
+                end
+                    
+                yRecon{i} = recon;
+                
 %                 yRecon{i}(obsIdx) = ySubjObs;
                 yReconChk{i} = muSubj' + X_ki' * w';
                 
 
+            end
+            if rcondwarnings > 0
+                warning('WW'' is badly conditioned for %d patches. Forcing y = Wx + mu', rcondwarnings);
             end
             assert(all(cellfun(@isclean, yRecon)));
             assert(all(cellfun(@isclean, yReconChk)));
