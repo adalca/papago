@@ -291,8 +291,66 @@ function wg = init(wg, data, varargin)
             % zero-means
             wg.params.mu = zeros(K, D);
             wg.params.pi = ones(1,K) ./ K;
-            wg.params.W = randn(D, wg.opts.model.dopca, K);
-            wg.params.sigmasq = rand(1, K);
+            wg.params.W = randn(D, wg.opts.model.dopca, K)*0.1;          
+            wg.params.sigmasq = rand(1, K)*0.001;
+            
+            % initiate sigmas
+            for k = 1:K
+                W = wg.params.W(:,:,k);
+                wg.params.sigma(:,:,k) = W * W' + wg.params.sigmasq(k) .* eye(D);
+            end
+            
+            
+        case 'latentSubspace-randW-complex'
+            % initialize each cluster by randomly (randn) initializing W, zero means, and random
+            % (rand) residual variance
+            settings = varargin{1};
+            
+            % mus from wgmm
+            wg.params = settings.wgmm.params;
+            for k = 1:K
+                nW = [];
+                for p = 1:wg.opts.model.dopca
+                    s = std(wg.params.W(:,p,k));
+                    m = mean(wg.params.W(:,p,k));
+                    nW(:, p) = normrnd(m, s, D, 1);
+                end
+                
+                nWc = cellfunc(@(x) reshape(x, settings.patchSize), dimsplit(2, nW));
+%                 nWc = cellfunc(@(x) volblur(x, settings.blurSigma), nWc);
+                nWcs = cellfunc(@(x) x(:), nWc);
+                W = cat(2, nWcs{:});
+                wg.params.W(:,:,k) = W;
+                
+%                 wg.params.W(:,:,k) = randn(D, wg.opts.model.dopca)*0.001;
+                wg.params.sigma(:,:,k) = W * W' + wg.params.sigmasq(k) .* eye(D);
+            end
+ 
+        case 'latentSubspace-flat-1'
+            % initialize each cluster by randomly (randn) initializing flat W (Ws of same value chosen at random) , zero means, 
+            % and random (rand) residual variance
+            
+            % zero-means
+            wg.params.mu = zeros(K, D);
+            wg.params.pi = ones(1,K) ./ K;
+            wg.params.W = ones(D, wg.opts.model.dopca, K)*0.001;
+            wg.params.sigmasq = ones(1, K)*0.001;
+            
+            % initiate sigmas
+            for k = 1:K
+                W = wg.params.W(:,:,k);
+                wg.params.sigma(:,:,k) = W * W' + wg.params.sigmasq(k) .* eye(D);
+            end
+            
+        case 'latentSubspace-randW-flat'
+            % initialize each cluster by randomly (randn) initializing flat W (Ws of same value chosen at random) , zero means, 
+            % and random (rand) residual variance
+            
+            % zero-means
+            wg.params.mu = zeros(K, D);
+            wg.params.pi = ones(1,K) ./ K;
+            wg.params.W = repmat(randn(1, wg.opts.model.dopca, K), [D, 1, 1])*0.01;
+            wg.params.sigmasq = rand(1, K)*0.01;
             
             % initiate sigmas
             for k = 1:K
@@ -436,16 +494,53 @@ function wg = init(wg, data, varargin)
                     'init', 'latentSubspace-randW', 'verbose', 1, 'replicates', 1);
                 wg.params.mu(k,:) = wgk.params.mu;
                 wg.params.W(:,:,k) = wgk.params.W;
-                wg.params.sigma(:,:,k) = wgk.params.sigma;
+                %wg.params.sigma(:,:,k) = wgk.params.sigma;
                 wg.params.sigmasq(k) = wgk.params.sigmasq;
                 wg.params.pi(k) = sum(ridx == k);
             end
+        
+        case 'LS-dct-3D'
             
-        case 'LS-blurdct'
             % compute expectations and cluster assignments
             [~, wg.expect] = varargin{1}.wgmm.estep(data); 
             ridx = argmax(wg.expect.gammank, [], 2);
             dLow = wg.opts.model.dopca;
+            
+            patchSize = varargin{1}.patchSize;
+            
+            % go through each cluster
+            oW = varargin{1}.wgmm.params.W;
+            for k = 1:K
+                
+                % get dct 
+                nW = dctnBasis(patchSize);
+                nW = nW(2:end);
+                for i = 1:dLow
+                    nW{i} = nW{i} - mean(nW{i});
+                    nW{i} = nW{i} ./ (std(nW{i})+eps) .* std(oW(:,i,k));
+                end
+                
+                % need to select
+                x = arrayfunc(@(x) 1:x, patchSize);
+                [s, si] = sort(sum(ndgrid2vec(x{:}), 2), 'ascend');
+                nW = cellfunc(@(x) x(:), nW(si(1:dLow)));
+                nW = cat(2, nW{:});
+                                
+                cidx = ridx == k;
+                wg.params.mu(k, :) = wmean(Y(cidx, :), data.W(cidx, :), 1);
+                wg.params.W(:,:,k) = nW;
+                wg.params.sigmasq(k) = varargin{1}.wgmm.params.sigmasq(k);
+                wg.params.pi(k) = mean(ridx == k);
+            end
+            wg.params.sigma = wg.wv2sigma();
+            
+        case 'LS-blurdct'
+            
+            % compute expectations and cluster assignments
+            [~, wg.expect] = varargin{1}.wgmm.estep(data); 
+            ridx = argmax(wg.expect.gammank, [], 2);
+            dLow = wg.opts.model.dopca;
+            
             
             blurSigma = varargin{1}.blurSigma;
             patchSize = varargin{1}.patchSize;
@@ -458,9 +553,11 @@ function wg = init(wg, data, varargin)
                 % get dct 
                 nW = dct(eye(D));
                 nWc = cellfunc(@(x) reshape(x, patchSize), dimsplit(2, nW));
+                
                 % blur the dct components
                 nWcb = cellfunc(@(x) volblur(x, blurSigma), nWc);
-                nWcs = cellfunc(@(x) x(:) ./ max(abs(x(:))) .* stdObs, nWcb);
+                nWcs = cellfunc(@(x) x(:) - mean(x(:)), nWcb);
+                nWcs = cellfunc(@(x) x(:) ./ max(abs(x(:))) .* stdObs, nWcs);
                 nW = cat(2, nWcs{:});
                 
                 cidx = ridx == k;
@@ -583,8 +680,13 @@ function wg = init(wg, data, varargin)
                 wtsum = w' * w;
                 s = top ./ wtsum;
                 
+                if strcmp(varargin{1}.sigmaCorr, 'wfit')
+                    ss = rand() * 0.001;
+                    s = s - ss * eye(size(s,1));
+                end
+                
 %                 warning('testing with iso');
-%                 s = cov(data.isodata(cidx, :));
+%                 s = cov(data.allIsodata(cidx, :));
 %                 wtsum = wtsum*0+1000;
                 
 %                 warning('testing with ds');
@@ -600,6 +702,35 @@ function wg = init(wg, data, varargin)
                         s(wtsum < varargin{1}.sigmaCorrThr) = m;
                     case 'diag'
                         s = diag(diag(s));
+                    case 'wfit'
+                        s(wtsum < varargin{1}.sigmaCorrThr) = nan;
+                        
+                        % do ||WW' - Sigma||^2_2 with missing values
+                        % wx = matrixSubspaceWithMissingData(s, wg.opts.model.dopca);
+                        % [Wfit, sv] = svd(wx, 'econ');
+                        % Wfit = Wfit * sv; warning('should be sqrt(sv)');
+                        
+                        % manually add one by one.
+                        st = s;
+                        Wfit = zeros(D, wg.opts.model.dopca);
+                        for i = 1:21
+                            Wfit(:, i) = matrixSubspaceWithMissingData(st, 1);
+                            st = st - Wfit(:, i) * Wfit(:, i)';
+                        end
+                        
+                        s = Wfit * Wfit' + ss * eye(size(s, 1));
+                        disp('done');
+                    case 'nmf'
+                        w = wtsum > varargin{1}.sigmaCorrThr;
+                        s(~w) = 0;
+                        
+                        option.distance='ls';
+                        option.iter=10000; % usually 1000
+                        option.dis=true;
+                        option.residual=1e-4;
+                        option.tof=1e-4;
+                        [b2, c2] = wnmfrulew(s, w*1, wg.opts.model.dopca);
+                        s = b2 * c2 + 0.0001*eye(size(s,1));
                     case 'rand'
                         thr = varargin{1}.sigmaCorrThr;
                         badidx = wtsum < thr | isnan(s);
@@ -654,19 +785,51 @@ function wg = init(wg, data, varargin)
 %                         s = s .* q + sc .* (1-q);
                     case 'ds-diag'
                         s = cov(xCent) + diag(diag(s));
+                        
                     case 'hack'
+                        % input parameters
                         reconMethod = varargin{1}.sigmaCorrRecon; % usually 'greedy1'
                         mergeMethod = varargin{1}.sigmaCorrMerge; % usually 'wfact-mult-adapt'
-                        
                         args = varargin{1}.sigmaCorrMergeArgs;
                         
+                        % some var copying
                         sp = s;
-                        sp(wtsum(:) < varargin{1}.sigmaCorrThr) = 0;
-%                         varargin{1}.sigmaCorrThr
                         wtw = wtsum;
+                        
+                        sp(wtsum(:) < varargin{1}.sigmaCorrThr) = 0;
                         wtw(wtsum(:) < varargin{1}.sigmaCorrThr) = 0;
+                        wtw(wtsum(:) >= varargin{1}.sigmaCorrThr) = 1;
+                        wtw = logical(wtw);
                         sr = wgmm.sigmarecon(sp, wtw, reconMethod);
-                        s = wgmm.sigmamerge(sp, sr, wtsum, mergeMethod, args{:});
+                        
+
+                        
+                        if strcmp(mergeMethod, 'direct')
+                            sr(wtw) = sp(wtw);
+                            s = sr;
+                        else
+                            s = wgmm.sigmamerge(sp, sr, wtsum, mergeMethod, args{:});
+                        end
+                        
+                        if strcmp(reconMethod, 'greedy2')
+                            sum(isnan(s(:)))
+                            ss = rand() * 0.0001;
+                            st = s;
+                            Wfit = zeros(D, wg.opts.model.dopca);
+                            for i = 1:21
+                                Wfit(:, i) = matrixSubspaceWithMissingData(st, 1);
+                                st = st - Wfit(:, i) * Wfit(:, i)';
+                            end
+
+                            s = Wfit * Wfit' + ss * eye(size(s, 1));
+                        end
+                        
+%                         warning('HACK WITH ISO');
+%                         sriso =  cov(data.allIsodata(cidx, :)); 
+%                         sriso = sriso + randn(size(sriso))*std(sriso(:))*1;
+%                         sriso(wtw==1) = sp(wtw==1);
+%                         s = sriso;
+                        
                     otherwise
                         error('unknown sigma correction method');
                 end
@@ -675,6 +838,11 @@ function wg = init(wg, data, varargin)
                 % assign sigma
                 [wg.params.W(:,:,k), wg.params.sigmasq(k)] = sigma2modelParams(s, wg.opts.model.dopca);
                 wg.params.pi(k) = mean(ridx==k);
+                if strcmp(varargin{1}.sigmaCorr, 'wfit')
+                    wg.params.W(:,:,k) = Wfit;
+                    wg.params.sigmasq(k) = ss;
+                    warning('init wfit: should update sigmasq!!!!!')
+                end
                
                 if isfield(varargin{1}, 'sigmaCorrConv') && varargin{1}.sigmaCorrConv
                     if isfield(data, 'allW')

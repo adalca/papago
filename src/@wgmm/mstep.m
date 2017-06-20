@@ -16,6 +16,14 @@ function params = mstep(wg, data)
             params = wg.mstepModel5(data);
         case 'latentSubspace'
             params = wg.mstepLatentSubspace(data);
+        case 'gpuLatentSubspace'
+            params = wg.mstepGPULatentSubspace(data);
+        case 'latentSubspaceR'
+            tdata = struct();
+            tdata.Y = data.atlY;
+            tdata.W = data.atlW;
+            tdata.K = data.K;
+            params = wg.mstepLatentSubspace(tdata);
         case 'wLatentSubspace'
             params = wg.mstepWLatentSubspace(data);
         case 'latentMissing'

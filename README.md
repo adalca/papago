@@ -3,6 +3,13 @@ Patch based gaussian mixture modelling of medical imaging
 **Potential name changes**: RESTORE? REPAMM (Restoration via Patch Mixture Model)? 
 RENOVO (Latin for renew/renovate) Integro (latin for restore, repair), creo (create)
 
+
+## Grand Overview
+- First, we need data to be aligned, and we need the masks of those alignments (perhaps even the interp-matrices?)
+- 
+
+
+
 ## Execution
 
 #### Data Preparation
