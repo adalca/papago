@@ -10,7 +10,7 @@ function [R, srcMask, tgtMask] = cor2interpmat(srcVolSize, varargin)
 % 'backward'). tgtLoc2SrcSpace is a 1-by-nDims cell, where each entry is a volume of the same size
 % as the target. the target size is then not required as an input. tgtLoc2SrcSpace{d}(i) is then the
 % dth coordinate of the ith input. srcVolSize is a 1-by-nDims vector for the size of the source
-% volume.
+% volume. see also volblur() for another example of building such a tgtLoc2SrcSpace
 %
 % The returned R matrix is tgtVoxels-by-srcVoxels. srcMask is a srcVolSize boolean volume, meaning
 % which voxels *contribute* to the target. tgtMask is a tgtVolSize boolean volume, and refers to
