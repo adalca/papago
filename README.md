@@ -1,7 +1,5 @@
 # papago
 Patch based gaussian mixture modelling of medical imaging  
-**Potential name changes**: RESTORE? REPAMM (Restoration via Patch Mixture Model)? 
-RENOVO (Latin for renew/renovate) Integro (latin for restore, repair), creo (create)
 
 
 ## Grand Overview
@@ -35,6 +33,3 @@ Loop over (sub)grid:
 1. run `papago.recon` to reconstruct all the patches in this subvolume (perhaps for just a subset of subjects)  
 
 Quilt patches.
-
-#### TODOs
-- In e-step, might want to destroy clusters that have no/low support 
