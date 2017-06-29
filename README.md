@@ -2,11 +2,8 @@
 Patch based gaussian mixture modelling of medical imaging  
 
 
-## Grand Overview
+## Pre-processing
 - First, we need data to be aligned, and we need the masks of those alignments (perhaps even the interp-matrices?)
-- 
-
-
 
 ## Execution
 
