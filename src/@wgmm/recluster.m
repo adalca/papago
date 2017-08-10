@@ -16,7 +16,7 @@ function wg = recluster(wg)
     
     if any(clustAsnHist < thr)
         fprintf('%6d', clustAsnHist); fprintf('\n');
-        fprintf(2, 'E-Step: %d clusters have less than %d datapoints\n%s\n', ...
+        fprintf(2, 'E-Step: %d cluster(s) have less than %d datapoints\n%s\n', ...
             sum(clustAsnHist < thr), thr, 'using heuristics to re-define clusters.');
         
         switch method
