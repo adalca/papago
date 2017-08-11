@@ -2,6 +2,11 @@ function [subvolume, nfo] = hugeMatfile2subvol(matfilefile, subvolLoc, subvolSiz
 % given a matfile which has the 4D variable 'volumes' (volsize x nSubjects)
 % extract the subvolumes at location subvolLoc, of size subvolSize, and save the subvolumes in
 % subvolfile. the subvolumes will be called 'subvolume'
+%
+% matfilefile - huge matfile path
+% subvolLoc - location of subvolume in atlas space
+% subvolSize - the size of the subvolume
+% subvolfile - the volume to output to
 
     narginchk(4, 6)
 
