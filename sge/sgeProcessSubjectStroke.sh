@@ -8,7 +8,8 @@
 #   /data/vision/polina/scratch/adalca/patchSynthesis/data/stroke/proc \
 #   /data/vision/polina/scratch/adalca/patchSynthesis/data/stroke/md/adalca_restor_md_2016_02_27.mat \
 #   400 \
-#   /data/vision/polina/scratch/adalca/patchSynthesis/data/stroke/atlases/atlMods.mat
+#   /data/vision/polina/scratch/adalca/patchSynthesis/data/stroke/atlases/atlMods.mat \
+#   regtype padval
 
 if [ "$#" -lt 4 ] ; then
   echo "Usage: $0 procpatch mdpatch normfact atlMods" >&2
@@ -36,7 +37,7 @@ export SGE_O_HOME=${SGE_LOG_PATH}
 mcr=/data/vision/polina/shared_software/MCR/v82/
 
 # project paths
-PROJECT_PATH="/data/vision/polina/users/adalca/patchSynthesis/subspace/git/";
+PROJECT_PATH="/data/vision/polina/users/adalca/patchSynthesis/subspace/git-papago/";
 
 # training shell file
 mccSh="${PROJECT_PATH}/../MCC/MCC_processSubjectStroke/run_processSubjectStroke.sh"
@@ -71,7 +72,7 @@ do
   # run training
   sgecmd="qsub ${sgerunfile}"
   chmod a+x ${sgerunfile}
-  echo -e "$sgecmd\n"
+  # echo -e "$sgecmd\n"
   $sgecmd
 
 done

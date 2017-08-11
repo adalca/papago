@@ -2,7 +2,7 @@
 # sgeSubvol2hierLSwgmm
 #
 # examples
-# ./sgeSubvol2hierLSwgmm.sh ADNI_T1_baselines mar12_2016 Ds5Us5Reg wholevol LS_K5_dec02 <5>
+# ./sgeSubvol2hierLSwgmm.sh ADNI_T1_baselines mar12_2016 Ds5Us5Reg wholevol LS_K5_dec02 
 
 if [ "$#" -lt 5 ] ; then
   echo "Usage: $0 dataName subvolVer mod proctype <dsFact>" >&2
@@ -15,11 +15,35 @@ subvolVer=$2 # e.g. mar12_2016
 mod=$3 # e.g. Ds5Us5Reg. Mask will be added for the weight.
 procType=$4 # wholevol brain_pad10 brain_pad30
 suffix="$5" # e.g. LM_K5_nov29
-if [ "$#" -lt 6 ] ; then dsRate="5"; else dsRate="$6"; fi
 
+# set some settings based on datatype
+if [ "$dataName" = "stroke" ] ; then
+  ininame="subvol2hierLSwgmm_stroke.ini"
+  logfilePost="selidx2loc_ds7us5_top343.txt"
+  logfilePost="selidx2loc_ds7us5_v2.txt"
+  logfilePost="selidx2loc_ds7us5_v2_rest343.txt"
+  # logfilePost="selidx2loc_ds7us5_special343.txt"
+else 
+  ininame="subvol2hierLSwgmm.ini"
+  logfilePost="selidx2loc_top343.txt"
+  logfilePost="selidx2loc_rest343.txt"
+fi
 
-# other settings
-ininame="subvol2hierLSwgmm.ini"
+# possible vision machines
+possMachines=("asia" "africa" "america" "europe" "antarctica" "australia" "monday" "tuesday" "wednesday" "thursday" "friday" "saturday" "quickstep" "tango" "waltz" "swing" "rumba" "vision01" "vision02" "vision03" "vision04" "vision05" "vision06" "vision07" "vision08" "vision09" "vision10" "vision11" "vision12" "vision13" "vision14" "vision15" "vision16" "vision17" "vision18" "vision19" "vision20" "vision21" "vision22" "vision23" "vision24" "vision25" "vision26" "vision27" "vision28" "vision29" "vision30" "vision31" "vision32" "vision33" "vision34" "vision35" "vision36" "vision37" "vision38")
+totlimit=300
+
+possMachines=("vision01" "vision02" "vision03" "vision04" "vision05" "vision06" "vision07" "vision10" "vision11" "vision12" "vision13" "vision14" "vision16" "vision17" "vision18" "vision19" "vision21" "vision25" "vision27" "vision28" "vision29" "vision32" "vision35" "vision37" "vision38")
+# possMachines=("vision03" "vision09" "vision14" "vision24" "vision32")
+totlimit=100
+
+# possMachines=("sorbet" "redbean")
+# totlimit=20
+
+# cluster parameters
+clustertype='vision'
+clustertype='sge'
+nVisionCmdQueues=1
 
 ###############################################################################
 # Paths
@@ -45,9 +69,7 @@ CLUST_PATH="/data/vision/polina/users/adalca/patchSynthesis/subspace/MCC/";
 mccSh="${CLUST_PATH}MCC_mccSubvol2hierLSwgmm/run_mccSubvol2hierLSwgmm.sh"
 
 # setting files
-# locfile="${OUTPUT_PATH}/selidx2loc_ds7us5_top343.txt"
-locfile="${OUTPUT_PATH}/selidx2loc_top343.txt"
-locfile="${OUTPUT_PATH}/selidx2loc_rest343.txt"
+locfile="${OUTPUT_PATH}/${logfilePost}" 
 oinifilename="${PROJECT_PATH}/ini/${ininame}"
 inifilename="${RECONFILES_PATH}/${ininame}"
 if [ ! -f ${inifilename} ] ; then
@@ -57,18 +79,18 @@ else
     echo "skipping copying of ini file. Already found ${inifilename}"
 fi  
 
-clustertype='sge'
-clustertype='vision'
-nVisionCmdQueues=10
+
 
 ###############################################################################
 # Running Code
 ###############################################################################
 
 # execute
+tot="1"
 cpui="1"
 stackcmd=""
 stacki="0"
+submitted="0"
 while read -u10 line
 do
   subvolInd=`echo ${line} | cut -d " " -f 1`
@@ -78,7 +100,7 @@ do
   wgmmMat="${RECONFILES_PATH}wgmm_${dataName}_${procType}_${mod}_subvol${subvolInd}.mat"
 
   if [ -f ${wgmmMat} ] ; then
-    echo "Skipping $subvolInd since `basename $wgmmMat` exists."
+    # echo "Skipping $subvolInd since `basename $wgmmMat` exists."
     continue;
   fi
 
@@ -107,6 +129,7 @@ do
     sgecmd="qsub ${sgerunfile}"
     echo $sgecmd
     $sgecmd
+    submitted=`expr $submitted + 1`
   fi
 
   if [ "$clustertype" = 'vision' ] ; then
@@ -120,9 +143,11 @@ do
       chmod a+x ${stackcmdrunfile}
 
       # run on vision machine
-      cpui=`expr $cpui % 35` # if it's 34 then it shoudl stay 34 and call vision35. If it's 35 it should call vision01
+      # cpui=`expr $cpui % 35` # if it's 34 then it shoudl stay 34 and call vision35. If it's 35 it should call vision01
       cpui=`expr $cpui + 1`
-      machine="vision`echo $cpui | awk '{printf "%02d", $0}'`"
+      cpui=`expr $cpui % ${#possMachines[@]}`
+      machine="${possMachines[$cpui]}"
+      # machine="vision`echo $cpui | awk '{printf "%02d", $0}'`"
       cmd="ssh adalca@${machine} \"nohup ${stackcmdrunfile} > ${stackcmdrunfile}.out 2> ${stackcmdrunfile}.err &\" "
       echo $cmd
       eval $cmd
@@ -130,12 +155,18 @@ do
       # clean up stack commands
       stackcmd=""
       stacki="0"
+      tot=`expr $tot + 1`
+      submitted=`expr $submitted + 1`
     fi
+  fi
+
+  if [ $tot -ge $totlimit ] ; then
+    exit;
   fi
 
   # sleep for a bit to give sge time to deal with the new job (?)
   # exit
-  sleep 1
+  # sleep 1
 done 10< ${locfile}
 
-echo "done"
+echo "done $0. Submitted: ${submitted}"

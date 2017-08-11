@@ -2,10 +2,10 @@
 # sgeHugeMatfile2subvol
 #
 # examples
-# ./sgeHugeMatfile2subvol.sh ADNI_T1_baselines mar12_2016 mod wholevol 
+# ./sgeHugeMatfile2subvol.sh ADNI_T1_baselines mar12_2016 mod wholevol [18,18,18]
 
-if [ "$#" -lt 4 ] ; then
-  echo "Usage: $0 dataName subvolVer mod proctype <dsFact>" >&2
+if [ "$#" -lt 5 ] ; then
+  echo "Usage: $0 dataName subvolVer mod proctype subvolSize" >&2
   exit 1
 fi
 
@@ -14,6 +14,11 @@ dataName=$1 # ADNI_T1_baselines or stroke or buckner
 subvolVer=$2 # e.g. mar12_2016
 mod=$3 # e.g. Ds5Us5RegMask
 procType=$4 # wholevol brain_pad10 brain_pad30
+subvolSize=$5 # "[18,18,18]" # patchSize + gridSpacing - 2 = 13 + 7 - 2
+
+# filenames
+in_filename_matfile="${dataName}_${procType}_${mod}_volumes.mat"
+in_filename_loc="selidx2loc_ds7us5_v2.txt"
 
 ###############################################################################
 # Paths
@@ -31,16 +36,15 @@ mcr=/data/vision/polina/shared_software/MCR/v82/
 OUTPUT_PATH="/data/vision/polina/projects/stroke/work/patchSynthesis/data/${dataName}/subvols/${procType}/${subvolVer}/";
 SUBVOLFILES_PATH="${OUTPUT_PATH}subvols/"
 mkdir -p ${SUBVOLFILES_PATH}
-PROJECT_PATH="/data/vision/polina/users/adalca/patchSynthesis/subspace/git/"
+PROJECT_PATH="/data/vision/polina/users/adalca/patchSynthesis/subspace/git-papago/"
 CLUST_PATH="/data/vision/polina/users/adalca/patchSynthesis/subspace/MCC/";
 
 # command shell file
 mccSh="${CLUST_PATH}MCC_hugeMatfile2subvol/run_hugeMatfile2subvol.sh"
 
-# files
-matfilefile="${OUTPUT_PATH}/${dataName}_${procType}_${mod}_volumes.mat"
-locfile="${OUTPUT_PATH}/selidx2loc_ds7us5.txt"
-subvolSize="[18,18,18]" # patchSize + gridSpacing - 2 = 13 + 7 - 2
+# full filenames
+in_fullname_matfile="${OUTPUT_PATH}/${in_filename_matfile}"
+in_fullname_loc="${OUTPUT_PATH}/${in_filename_loc}"
 
 ###############################################################################
 # Running Code
@@ -53,13 +57,13 @@ do
   subvolLoc=`echo ${line} | cut -d " " -f 2`
   subvolfile="${SUBVOLFILES_PATH}${dataName}_${procType}_${mod}_subvol${subvolInd}.mat"
 
-  # if [ -f $subvolfile ] ; then
-  #   printf "skipping $subvolInd since $subvolfile is present \n\n"
-  #   continue;
-  # fi
+  if [ -f $subvolfile ] ; then
+    # printf "skipping $subvolInd since $subvolfile is present \n\n"
+    continue;
+  fi
 
   # hugeMatfile2subvol(niifile, volName, patchSize, gridSpacing, atlVolSize, savefile)
-  lcmd="${mccSh} $mcr $matfilefile $subvolLoc $subvolSize $subvolfile"
+  lcmd="${mccSh} $mcr $in_fullname_matfile $subvolLoc $subvolSize $subvolfile"
 
   # create sge file
   sgeopath="${OUTPUT_PATH}/sge/"
@@ -81,4 +85,4 @@ do
 
   # sleep for a bit to give sge time to deal with the new job (?)
   # sleep 100
-done < ${locfile}
+done < ${in_fullname_loc}

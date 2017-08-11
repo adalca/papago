@@ -5,7 +5,7 @@
 # ./sgeSubvol2itersLSwgmm.sh ADNI_T1_baselines mar12_2016 Ds5Us5Reg wholevol LS_K5_dec02
 
 if [ "$#" -lt 5 ] ; then
-  echo "Usage: $0 dataName subvolVer mod proctype <dsFact>" >&2
+  echo "Usage: $0 dataName subvolVer mod proctype" >&2
   exit 1
 fi
 
@@ -21,20 +21,33 @@ if [ "$dataName" = "stroke" ] ; then
   ininame="subvol2itersLSwgmm_stroke.ini"
   logfilePost="selidx2loc_ds7us5_top343.txt"
   logfilePost="selidx2loc_ds7us5_rest343.txt"
+  logfilePost="selidx2loc_ds7us5_v2.txt"
 else 
-  ininame="subvol2itersLSwgmm.ini"
+  ininame="subvol2itersLSwgmm.ini" 
   logfilePost="selidx2loc_top343.txt"
+  # logfilePost="selidx2loc.txt"
   logfilePost="selidx2loc_rest343.txt"
+  # logfilePost="selidx2loc_special343.txt"
 fi
 
 # cluster parameters
-clustertype='sge'
+clustertype='sge' 
 clustertype='vision'
-nVisionCmdQueues=10
+nVisionCmdQueues=50
 
 # possible vision machines
-possMachines=("asia" "africa" "america" "europe" "antarctica" "australia" "monday" "tuesday" "wednesday" "thursday" "friday" "saturday" "quickstep" "tango" "waltz" "swing" "rumba" "vision01" "vision02" "vision03" "vision04" "vision05" "vision06" "vision07" "vision08" "vision09" "vision10" "vision11" "vision12" "vision13" "vision14" "vision15" "vision16" "vision17" "vision18" "vision19" "vision20" "vision21" "vision22" "vision23" "vision24" "vision25" "vision26" "vision27" "vision28" "vision29" "vision30" "vision31" "vision32" "vision33" "vision34" "vision35" "vision36" "vision37" "vision38")
+possMachines=("vision11" "vision12" "vision13" "vision14" "vision15" "vision16" "vision17" "vision18" "vision19" "vision20" "vision21" "vision22" "vision23" "vision24" "vision25" "vision26" "vision27" "vision28" "vision29" "vision30" "vision31" "vision32" "vision33" "vision34" "vision35" "vision36" "vision37" "vision38" "asia" "africa" "america" "europe" "antarctica" "australia" "vision01" "vision02" "vision03" "vision04" "vision05" "vision06" "vision07" "vision08" "vision09" "vision10" )
+# possMachines=("asia" "africa" "america" "antarctica" "australia" "monday" "tuesday" "wednesday" "thursday" "friday" "saturday")
+#  "quickstep" "tango" "waltz" "swing" "rumba"
+possMachines=("monday" "tuesday" "wednesday" "thursday" "friday" "saturday")
+possMachines=("vision01" "vision02" "vision03" "vision04" "vision05" "vision06" "vision07" "vision10" "vision11" "vision12" "vision13" "vision14" "vision16" "vision17" "vision18" "vision19" "vision21" "vision22" "vision25" "vision27" "vision28" "vision29" "vision32" "vision35" "vision37" "vision38")
+# possMachines=("vision08" "vision09" "vision15" "vision18" "vision20" "vision22" "vision30" "vision34")
+totlimit=200
 
+
+# possMachines=("sorbet" "redbean")
+# possMachines=("redbean")
+# totlimit=20
 
 ###############################################################################
 # Paths
@@ -61,6 +74,7 @@ mccSh="${CLUST_PATH}MCC_mccSubvol2itersLSwgmm/run_mccSubvol2itersLSwgmm.sh"
 
 # setting files
 locfile="${OUTPUT_PATH}/${logfilePost}"
+printf  "$locfile \n"
 oinifilename="${PROJECT_PATH}/ini/${ininame}"
 inifilename="${RECONFILES_PATH}/${ininame}"
 if [ ! -f ${inifilename} ] ; then
@@ -79,6 +93,7 @@ tot="1"
 cpui="1"
 stackcmd=""
 stacki="0"
+submitted="0"
 while read -u10 line
 do
   subvolInd=`echo ${line} | cut -d " " -f 1`
@@ -88,7 +103,7 @@ do
   wgmmMat="${RECONFILES_PATH}wgmm_${dataName}_${procType}_${mod}_subvol${subvolInd}.mat"
 
   if [ -f ${wgmmMat} ] ; then
-    # echo "Skipping $subvolInd since `basename $wgmmMat` exists."
+    echo "Skipping $subvolInd since `basename $wgmmMat` exists."
     continue;
   fi
 
@@ -117,6 +132,8 @@ do
     sgecmd="qsub ${sgerunfile}"
     echo $sgecmd
     $sgecmd
+    submitted=`expr $submitted + 1`
+    echo $submitted
   fi
 
   if [ "$clustertype" = 'vision' ] ; then
@@ -143,10 +160,11 @@ do
       stackcmd=""
       stacki="0"
       tot=`expr $tot + 1`
+      submitted=`expr $submitted + 1`
     fi
   fi
 
-  if [ $tot -ge 300 ] ; then
+  if [ $tot -ge $totlimit ] ; then
     exit;
   fi
 
@@ -155,4 +173,4 @@ do
   # sleep 1
 done 10< ${locfile}
 
-echo "done"
+echo "done $0; submitted $submitted jobs"

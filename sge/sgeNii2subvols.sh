@@ -66,7 +66,7 @@ do
   atlVolSize="[256,256,256]"
   savefile="${OUTPUT_PATH}${subjid}/${subjid}_ds${dsRate}_us${dsRate}_reg_loc%d.mat"
 
-  checkfile="${OUTPUT_PATH}${subjid}/${subjid}_ds${dsRate}_us${dsRate}_reg_loc10000.mat"
+  checkfile="${OUTPUT_PATH}${subjid}/${subjid}_ds${dsRate}_us${dsRate}_reg_loc%d.mat"
   if [ -f $checkfile ]; then continue; fi
 
   # nii2subvols(niifile, volName, patchSize, gridSpacing, atlVolSize, savefile)
