@@ -9,6 +9,8 @@ function subvol2iterLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, ini
 % wgmmMat - matfile name of output wgmm (output)
 
     params = ini2struct(iniFilename); 
+    
+    percVolsKeep = params.percVolsKeep; 
 
     % rename the parameters
     gmmK = params.gmmK; 
@@ -21,33 +23,59 @@ function subvol2iterLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, ini
     diffPad = params.volPad;
     dLow = params.dLow;
     maxIters = params.maxIters;
+    minIters = params.minIters;
     TolFun = params.TolFun;
     wthr = params.threshold;
     
+    growMethod = params.growMethod;
     
     nDims = numel(patchSize);
 
     %% load subvolumes
     tic
-    q = load(dsSubvolMat, 'subvolume'); 
-    dsSubvols = q.subvolume;
-    q = load(wtSubvolMat, 'subvolume'); 
-    wtSubvols = q.subvolume;
+    if ischar(dsSubvolMat)
+        q = load(dsSubvolMat, 'subvolume'); 
+        dsSubvols = q.subvolume;
+    else
+        dsSubvols = dsSubvolMat;
+    end
+    if ischar(wtSubvolMat)
+        q = load(wtSubvolMat, 'subvolume'); 
+        wtSubvols = q.subvolume;
+    else 
+        wtSubvols = wtSubvolMat;
+    end
     clear q;
     fprintf('took %5.3f to load the subvolumes\n', toc);
-    
-    % compute some parameters
+
+    tic
+    % prune volumes
+    if isnumeric(percVolsKeep)
+        nSubj = size(dsSubvols, 4);
+        nSubjkeep = round(percVolsKeep .* nSubj);
+        vidx = randsample(nSubj, nSubjkeep);
+    else % assume it's a file with numbers
+        fid = fopen(percVolsKeep);
+        C = textscan(fid, '%d');
+        fclose(fid);
+        vidx = cat(1, C{:});
+        nSubjkeep = numel(vidx);
+    end
+    dsSubvols = dsSubvols(:,:,:,vidx);
+    wtSubvols = wtSubvols(:,:,:,vidx);
+    nSubj = nSubjkeep;
     volSize = size(dsSubvols);
-    nSubj = volSize(nDims + 1);
-    volSize = volSize(1:nDims);
+    volSize = volSize(1:3);
     
     if isscalar(diffPad)
-        diffPad = diffPad * ones(1, nDims);
+        diffPad = diffPad * ones(1, 3);
     end
     
     % crop volumes -- we don't want to learn from the edges of the volumes;
     dsSubvolsCrop = cropVolume(dsSubvols, [diffPad+1 1], [volSize-diffPad nSubj]);
     wtSubvolsCrop = cropVolume(wtSubvols, [diffPad+1 1], [volSize-diffPad nSubj]);
+    
+    fprintf('took %5.3f to process the %d subvolumes\n', toc, nSubj);
     
     %% get patches and init.
     dsPatches = patchlib.vol2lib(dsSubvolsCrop, [patchSize 1]);
@@ -66,7 +94,8 @@ function subvol2iterLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, ini
         gmmopt = statset('Display', 'iter', 'MaxIter', 3, 'TolFun', gmmTolerance);
         % gmmClust = fitgmdist(smallBlurPatches, gmmK, regstring, 1e-4, 'replicates', 3, 'Options', gmmopt);
         % gmdist = gmdistribution.fit(Y, gmmK, regstring, 1e-4, 'replicates', 3, 'Options', gmmopt);
-        [~, wgDs] = fitgmdist2wgmmLS(Y, gmmK, 1e-4, 3, gmmopt, dLow);
+        % [~, wgDs] = fitgmdist2wgmmLS(Y, gmmK, 1e-4, 3, gmmopt, dLow);
+        [wgDs, ~] = fitgmdist2wgmmLS(Y, gmmK, 1e-4, 3, gmmopt, dLow);
         
         save(clusterIdxMat, 'trainsetIdx', 'wgDs');
     else
@@ -84,10 +113,19 @@ function subvol2iterLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, ini
     % ecm
     itersteps = params.ppcaMinK:params.ppcaKskip:params.ppcaMaxK;
     wg = wgmmfit(data, 'modelName', 'latentSubspace', 'modelArgs', struct('dopca', dLow), ...
-        'maxIter', maxIters, 'TolFun', TolFun, 'verbose', 2, 'replicates', 1, ...
-        'init', 'latentSubspace-iterds','initArgs', struct('wgmm', wgDs, 'dopcas', itersteps, 'growW', 'recompute'));
+        'minIter', minIters, 'maxIter', maxIters, 'TolFun', TolFun, 'verbose', 2, 'replicates', 1, ...
+        'init', 'latentSubspace-iterds-randv', 'initArgs', struct('wgmm', wgDs, 'dopcas', itersteps, 'growW', growMethod));
 
-    save(wgmmMat, 'wg', 'trainsetIdx', '-v7.3'); 
-
-    % warning('(might be meaningless now? remember to add small diagonal component to sigmas in next code'); 
+    wgwhole = wg;
+    wg = wgmm(wg.opts, wg.params);
+    if isfield(wg.params, 'sigma')
+        wg.params = rmfield(wg.params, 'sigma');
+    end
+    
+    %% save
+    if params.saveLargeWg
+        save(wgmmMat, 'wg', 'wgwhole', 'trainsetIdx', '-v7.3'); 
+    else
+        save(wgmmMat, 'wg', 'trainsetIdx', '-v7.3'); 
+    end
 end

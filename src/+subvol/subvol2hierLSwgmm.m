@@ -58,9 +58,17 @@ function [wgDs, vols] = subvol2hierLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMa
     fprintf('took %5.3f to load the subvolumes\n', toc);
 
     % prune volumes
-    nSubj = size(dsSubvols, 4);
-    nSubjkeep = round(percVolsKeep .* nSubj);
-    vidx = randsample(nSubj, nSubjkeep);
+    if isnumeric(percVolsKeep)
+        nSubj = size(dsSubvols, 4);
+        nSubjkeep = round(percVolsKeep .* nSubj);
+        vidx = randsample(nSubj, nSubjkeep);
+    else % assume it's a file with numbers
+        fid = fopen(percVolsKeep);
+        C = textscan(fid, '%d');
+        fclose(fid);
+        vidx = cat(1, C{:});
+        nSubjkeep = numel(vidx);
+    end
     dsSubvols = dsSubvols(:,:,:,vidx);
     wtSubvols = wtSubvols(:,:,:,vidx);
     nSubj = nSubjkeep;
@@ -120,6 +128,7 @@ function [wgDs, vols] = subvol2hierLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMa
                 wdata = struct('Y', yds, 'W', Ws, 'K', gmmK);
                 paramsLS_ds = [lsopts, 'replicates', 1, 'init', 'wgmm', 'initArgs', struct('wgmm', wgDsLs)];
                 wgDs = wgmmfit(wdata, paramsLS_ds{:});
+                wgDs.params.sigma = wgDs.wv2sigma;
             
             case 'LS_diag'
                 % run ds wgmm
