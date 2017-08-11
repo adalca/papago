@@ -21,7 +21,7 @@ function processmd(md, dsRate, intensityNorm, atlmods, steps)
   
     
     %% normalize intensity and size
-    if ismember('normalize', steps);
+    if ismember('normalize', steps)
         % transform images to be between 0 to 1, and crop to a bounding box 
         md.normalize('brain', intensityNorm, 'procBrain');
         
@@ -110,7 +110,7 @@ function processmd(md, dsRate, intensityNorm, atlmods, steps)
     end
 
     %% Perform registration via iso rigid registration
-    if ismember('isoreg', steps);
+    if ismember('isoreg', steps)
         % register original without downsampling Note: in some sense, this is "true" rigid registration,
         %   since we used the true data to perform the registration.
         md.register('procBrain', atlmods.BUCKNER_ATLAS_BRAIN_PROC, 'rigid', 'multimodal', ...
