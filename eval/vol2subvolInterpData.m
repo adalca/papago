@@ -1,4 +1,4 @@
-function [subjSubvol, subjMaskSubvol, R, G] = vol2subvolInterpData(interpMatData, subjVol, subjMask, atlSubvolLoc, atlSubvolSize, outmatfile)
+function [subjSubvol, subjMaskSubvol, R, G, rangeMins] = vol2subvolInterpData(interpMatData, subjVol, subjMask, atlSubvolLoc, atlSubvolSize, outmatfile)
 % from volume/subject data, for a given subvolume location and size in the
 % atlas space, extract the appropriate original subvolume in subject space, as well as the forward
 % and inverse R matrices.
@@ -36,7 +36,7 @@ function [subjSubvol, subjMaskSubvol, R, G] = vol2subvolInterpData(interpMatData
     atlIdx = sub2ind(atlsize, atlRange{:});
 
     % get subject subspace
-    subjSubvolRange = srcVol2tgtPatch(atlSubvolLoc, atlSubvolSize, interpMatData.atlLoc2SubjSpace);
+    [subjSubvolRange, rangeMins] = srcVol2tgtPatch(atlSubvolLoc, atlSubvolSize, interpMatData.atlLoc2SubjSpace);
     subjSubvolRangeNd = ndgrid2cell(subjSubvolRange{:});
 
     % get the linear indexes for both atl and subject space, so as to extract the appropriate
@@ -45,7 +45,9 @@ function [subjSubvol, subjMaskSubvol, R, G] = vol2subvolInterpData(interpMatData
     %   subject. In thesis notation, this is "R". subj2atlR is then Gamma.
     subjIdx = sub2ind(size(subjVol), subjSubvolRangeNd{:});
     R = interpMatData.atl2subjR(subjIdx(:), atlIdx(:));
-    G = interpMatData.subj2atlR(atlIdx(:), subjIdx(:));
+    % G = interpMatData.subj2atlR(atlIdx(:), subjIdx(:));
+    warning('G not being read. FIXME');
+    G = nan;
 
     nfo = struct();
     nfo.subvolLoc = atlSubvolLoc;

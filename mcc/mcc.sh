@@ -18,6 +18,7 @@ EXTTOOLBOX_PATH="/data/vision/polina/users/adalca/MATLAB/external_toolboxes"
 # MCC-related paths
 MCCBUILD_PATH="${TOOLBOX_PATH}/mgt/src/mcc/" # mccBuild script path
 MCC_RUN_DIR="/afs/csail.mit.edu/system/common/matlab/2013b/bin/mcc"
+MCC_RUN_DIR="/afs/csail.mit.edu/system/common/matlab/2016b/bin/mcc"
 
 # need to add main path to system path (?).
 export PATH="${MAIN_PATH}:$PATH"
