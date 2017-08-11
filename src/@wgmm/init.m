@@ -291,7 +291,7 @@ function wg = init(wg, data, varargin)
             % zero-means
             wg.params.mu = zeros(K, D);
             wg.params.pi = ones(1,K) ./ K;
-            wg.params.W = randn(D, wg.opts.model.dopca, K)*0.1;          
+            wg.params.W = randn(D, wg.opts.model.dopca, K)*0.01;          
             wg.params.sigmasq = rand(1, K)*0.001;
             
             % initiate sigmas
@@ -374,6 +374,23 @@ function wg = init(wg, data, varargin)
                 wg.params.sigma(:,:,k) = W * W' + wg.params.sigmasq(k) .* eye(D);
             end
             
+        case 'latentSubspace-diagW-mu'
+            % initialize each cluster by randomly (randn) initializing W, zero means, and random
+            % (rand) residual variance
+            
+            % zero-means
+            wg.params.mu = varargin{1}.wgmm.params.mu;
+            wg.params.pi = ones(1,K) ./ K;
+            d = repmat(eye(D), [1,1,K]);
+            wg.params.W = d(:, 1:wg.opts.model.dopca, K);
+            wg.params.sigmasq = rand(1, K)*0.001;
+            
+            % initiate sigmas
+            for k = 1:K
+                W = wg.params.W(:,:,k);
+                wg.params.sigma(:,:,k) = W * W' + wg.params.sigmasq(k) .* eye(D);
+            end
+            
         case 'latentSubspace-clustIdx'
             % given initial clusters, by randomly (randn) initializing W, zero means, and random
             % (rand) residual variance within each cluster
@@ -438,8 +455,8 @@ function wg = init(wg, data, varargin)
 %                 wgk = wgmmfit(d, 'modelName', 'latentSubspace', 'modelArgs', wg.opts.model, ...
 %                     'init', 'latentSubspace-randW-mu', 'verbose', 1, 'replicates', 3, 'MaxIter', 10);
                 wgk = wgmmfit(d, 'modelName', 'latentSubspace', 'modelArgs', wg.opts.model, ...
-                    'init', 'latentSubspace-randW-mu', 'initArgs', struct('wgmm', wgi), ...
-                    'verbose', 1, 'replicates', 3, 'MaxIter', 10);
+                    'init', 'latentSubspace-diagW-mu', 'initArgs', struct('wgmm', wgi), ...
+                    'verbose', 1, 'replicates', 3, 'MaxIter', 20);
                 %[~, ~, ~, mu, ~, rsltStruct] = ppcax(x, wg.opts.model.dopca, 'Options', struct('Display', 'iter', 'MaxIter', 20, 'TolFun', 1e-3, 'TolX', 1e-3));
                 wg.params.mu(k,:) = wgk.params.mu;
                 wg.params.W(:,:,k) = wgk.params.W;
@@ -704,6 +721,8 @@ function wg = init(wg, data, varargin)
                         s = diag(diag(s));
                     case 'wfit'
                         s(wtsum < varargin{1}.sigmaCorrThr) = nan;
+                        nNans = sum(isnan(s(:)));
+                        fprintf('fitting %d/%d (%f) nans in cluster %d', nNans, numel(s), nNans/numel(s), k);
                         
                         % do ||WW' - Sigma||^2_2 with missing values
                         % wx = matrixSubspaceWithMissingData(s, wg.opts.model.dopca);
@@ -731,14 +750,17 @@ function wg = init(wg, data, varargin)
                         option.tof=1e-4;
                         [b2, c2] = wnmfrulew(s, w*1, wg.opts.model.dopca);
                         s = b2 * c2 + 0.0001*eye(size(s,1));
+                        
                     case 'rand'
                         thr = varargin{1}.sigmaCorrThr;
                         badidx = wtsum < thr | isnan(s);
+                        fprintf('replacing %f%% of entries with randn', mean(badidx(:)))
                         r = normrnd(0, std(s(~badidx)), size(s));
                         tmap = triu(true(size(s)));
                         s(badidx & tmap) = r(badidx & tmap);
                         r = r';
                         s(badidx & ~tmap) = r(badidx & ~tmap);
+                        
                     case 'flip-rand'
                         thr = varargin{1}.sigmaCorrThr;
                         badidx = wtsum < thr;
@@ -866,6 +888,7 @@ function wg = init(wg, data, varargin)
                     wg.params.sigmasq(k) = wgk.params.sigmasq;
                     wg.params.pi(k) = mean(ridx == k);
                 end
+                wg.params.sigma = wg.wv2sigma();
                 
             end
             
