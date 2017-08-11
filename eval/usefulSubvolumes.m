@@ -1,5 +1,9 @@
-function [selidx, grididx, dilatedSeg] = usefulSubvolumes(atlnii, atlsegnii, blurSigma, blurWindow, blurSigma2, blurWindow2, gridSpacing)
+function [selidx, grididx, dilatedSeg] = usefulSubvolumes(atlnii, atlsegnii, blurSigma, ...
+    blurWindow, blurSigma2, blurWindow2, gridSpacing)
 % decide on the useful subvolumes given an atlas and a gridSpacing.
+%
+% selidx are the selected grid indices
+% grididx are all the grid indices
 %
 % atlsegnii = loadNii([SYNTHESIS_DATA_PATH, 'buckner/atlases/wholevol/buckner61_seg_proc.nii.gz']);
 % atlnii = loadNii([SYNTHESIS_DATA_PATH, 'buckner/atlases/wholevol/buckner61_proc.nii.gz']);
