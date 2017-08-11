@@ -15,7 +15,8 @@ function params = mstepLatentSubspace(wg, data)
     K = data.K;
     Nk = sum(wg.expect.gammank, 1);
     [dHigh, dLow, ~] = size(wg.params.W);
-    assert(dLow == wg.opts.model.dopca);
+    assert(dLow == wg.opts.model.dopca, ...
+        'W low dim %d does not match explicit dopca parameter %d', dLow, wg.opts.model.dopca);
 
     % initialize new stats
     mu = zeros(K, dHigh);
@@ -125,6 +126,8 @@ function params = mstepLatentSubspace(wg, data)
             % compute numerator and denominator
             sgXhat = bsxfun(@times, sqrt(gnk), xhat);
             wDenom = sgXhat' * sgXhat + sum(gShat, 3); % low-dim variance
+            
+            % hack add light random offsets to mu and W.
             if rcond(wDenom) < 1e-12
                 hacnr = hacnr + 1;
                 mu(k, j) = randn*0.001;
@@ -146,13 +149,6 @@ function params = mstepLatentSubspace(wg, data)
             wNum = xhat' * (gnk .* (yobs - mu(k, j))); % low-dim centered data
             newW(j, :, k) = wNum' / wDenom;
             
-%             if j == 281
-%                 disp('2,6,6!')
-%                 newW(j,1,1)
-%             elseif j == 443
-%                 disp('2,6,7')
-%                 newW(j,1,1)
-%             end
             
             % old W
             if doOld
@@ -160,7 +156,7 @@ function params = mstepLatentSubspace(wg, data)
                 newWOld(j, :, k) = wNum' / wDenom;
             end
         end
-        if hacnr > 0, fprintf('hack %d\n', hacnr); end
+        if hacnr > 0, fprintf('warning: hack rand added %d times due to bad rcond\n', hacnr); end
         assert(isclean(mu))
         if ~(isclean(newW))
             warning('mstepLS: found %d NANs in W_%d! Filling them in randomly', sum(sum(isnan(newW(:, :, k)))), k);
@@ -194,7 +190,7 @@ function params = mstepLatentSubspace(wg, data)
             muDenom(obsIdx) = muDenom(obsIdx) + gnk;
         end
         newsigmasq(k) = v ./ sum(muDenom);
-        assert(isclean(newsigmasq));
+        assert(isclean(newsigmasq), 'sigmasq is not clean');
         
     end
         
@@ -207,5 +203,5 @@ function params = mstepLatentSubspace(wg, data)
     
     % pi update
     params.pi = Nk ./ N; 
-    assert(isclean(params.pi));
+    assert(isclean(params.pi), 'pi is not clean');
     
