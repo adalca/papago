@@ -30,10 +30,10 @@ function wg = recluster(wg)
                 for fi = 1:numel(lowClusters)
                     lowClustIdx = lowClusters(fi);
                     
-                    % get points that belong to the largest cluster
+                    % get points that (still) belong to the largest cluster
                     idx = find(mi == largestCluster);
                     nIdx = numel(idx);
-                    nSelIdx = floor(nIdx/2); % select half of the clusters
+                    nSelIdx = floor(nIdx/2); % select half of the points
                     assert(nSelIdx > thr, 'Don''t have enough data to resample');
                     selidx = idx(randsample(nIdx, nSelIdx));
                     
