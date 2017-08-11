@@ -217,7 +217,7 @@ function logpin = logpost(wg, data)
                 logmvn = zeros(N, K, class(Y));
             else
                 % missing variables. 
-                assert(islogical(wts) | all(wts(:) == 0 | wts(:) == 1));
+                assert(islogical(wts) | all(wts(:) == 0 | wts(:) == 1), 'Weights are non binary');
                 logmvn = zeros(N, K);
             end
             
