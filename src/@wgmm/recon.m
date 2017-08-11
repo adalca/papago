@@ -143,13 +143,8 @@ function varargout = recon(wg, data, method, varargin)
                 
 %                 yRecon{i}(obsIdx) = ySubjObs;
                 yReconChk{i} = muSubj' + X_ki' * w';
-%                 yRecon{i} = yReconChk{i};
+                yRecon{i} = yReconChk{i};
 
-                if i == 100
-                    disp('ah');
-                    % view3Dopt({yRecon{i},ySubj,obsIdx*1, muSubj}, 'voxMask', data.yrotmasks{i});
-                    % view3Dopt(dimsplit(2, w), 'voxMask', data.yrotmasks{i});
-                end
                 
 
             end
