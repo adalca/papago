@@ -21,11 +21,16 @@ function [logp, dsAtlPatchMeans] = subvolLogp(gmm, subvolLoc, subvolSize, atlPat
     % TODO: just call wgmm.logp? it would include the prior
     
     % choose optimal cluster using the in-atlas heuristic measure
-    K = size(gmm.mu, 1);
+    K = size(gmm.params.mu, 1);
     logp = zeros(size(dsAtlPatches, 1), K);
     for k = 1:K
-        atlMu = gmm.mu(k, :);
-        atlSigma = gmm.sigma(:, :, k);
+        atlMu = gmm.params.mu(k, :);
+        if ~isfield(gmm.params, 'sigma') || size(gmm.params.sigma, 3) < k
+            gmm.params.sigma(:, :, k) = gmm.params.W(:, :, k) * gmm.params.W(:, :, k)' + gmm.params.sigmasq(k) * eye(size(gmm.params.W, 1));
+        end
+            
+        atlSigma = gmm.params.sigma(:, :, k);
+            
         
         atlmusel = bsxfun(@times, atlMu, dsAtlMaskPatches);
         atlpatchessel = dsAtlPatches .* dsAtlMaskPatches;
