@@ -1,4 +1,4 @@
-function wg = subvol2iterppcawgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFilename, optionalSubvolSaveMatFileName)
+function wg = subvol2iterppcatest(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFilename, optionalSubvolSaveMatFileName)
 % dsSubvolMat - matfile name of subvolume
 % wtSubvolMat - matfile name of weights
 % iniFilename - ini filename with parameters (input)
@@ -109,7 +109,49 @@ function wg = subvol2iterppcawgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmM
     postVal = postVal(allSamp,:); 
     clusterIdx = clusterIdx(allSamp); 
     
+    
+
+    wparams = struct();
+    for k = 1:gmmK
+            assert(~subtractMean, 'subtractMean not well tested yet');
+
+            X0 = dsPatches(clusterIdx==k,:); 
+            W0 = wtPatches(clusterIdx==k,:); 
+            %params.ppcaMinK:params.ppcaKskip:params.ppcaMaxK
+            d = size(X0, 2);
+            c = cov(X0); % initial covariance
+
+            wparams.mu(k,:) = mean(X0);
+            wparams.sigma(:,:,k) = c;
+            
+%             pk = 1;
+%             [u, s, ~] = svd(c); 
+%             vinit = (1 ./ (d-pk)) * sum(diag(s((pk+1):d, (pk+1):d)));
+%             Winit = u(:, 1:pk) * (sqrt(s(1:pk, 1:pk)) - vinit * eye(pk));
+%             
+%             wparams.sigmasq(k) = vinit;
+%             wparams.W(:,:,k) = Winit;
+    end
+    wparams.pi = sum(postVal) ./ sum(postVal(:));
+    
+    % test
+    mi = argmax(postVal, [], 2);
+    piv = postVal * 0;
+    idx = sub2ind(size(postVal), (1:size(postVal, 1))', mi(:));
+    piv(idx) = 1;
+    data = struct('Y', dsPatches, 'W', wtPatches>=threshold, 'K', gmmK);
+    wginit = wgmm(wgmm.optionDefaults, wparams);
+    wginit.expect.gammank = piv;
+    qwg = wgmmfit(data, 'replicates', 1, 'modelName', 'latentSubspace', ...
+        'modelArgs', struct('dopca', inf), 'maxIter', params.maxPPCAiter, 'minIter', params.maxPPCAiter, 'TolFun', 0.00001, ...
+        'verbose', 2, 'init', 'latentSubspace-iterds-randv', ...
+        'initargs', struct('wgmm', wginit, 'dopcas', params.ppcaMinK:params.ppcaKskip:params.ppcaMaxK,...
+        'growW', 'recompute'));
+    save('qwg', 'qwg');
+    wg = qwg;
+    
     % ppca
+    dsadsadas
     for k = 1:gmmK
         assert(~subtractMean, 'subtractMean not well tested yet');
         
@@ -121,8 +163,7 @@ function wg = subvol2iterppcawgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmM
         
         means0(k,:) = mean(X0);
         means(k,:) = means0(k,:);
-        sigmas0(:,:,k) = c;
-        
+        sigmas0(:,:,k) = c;      
         
         X0(W0<threshold) = nan; 
         tic;
@@ -140,11 +181,11 @@ function wg = subvol2iterppcawgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmM
             [COEFF, SCORE, LATENT, MU, V, S] = ppcax(X0, pk, 'Options', opts, 'W0', Winit, 'v0', v0init, 'mu0', means(k,:)'); % v0 added later!!!
             
             % test wgmm
-%             data = struct('Y', X0, 'W', W0>=threshold, 'K', 1);
-%             wginit = wgmm(wgmm.optionDefaults, struct('mu', means(k,:), 'W', Winit, 'sigmasq', v0init, 'pi', 1));
-%             qwg = wgmmfit(data, 'replicates', 1, 'modelName', 'latentSubspace', ...
-%                 'modelArgs', struct('dopca', pk), 'maxIter', params.maxPPCAiter, 'TolFun', 0.00001, ...
-%                 'verbose', 2, 'init', 'wgmm', 'initargs', struct('wgmm', wginit));
+            data = struct('Y', X0, 'W', W0>=threshold, 'K', 1);
+            wginit = wgmm(wgmm.optionDefaults, struct('mu', means(k,:), 'W', Winit, 'sigmasq', v0init, 'pi', 1));
+            qwglocal = wgmmfit(data, 'replicates', 1, 'modelName', 'latentSubspace', ...
+                'modelArgs', struct('dopca', pk), 'maxIter', params.maxPPCAiter, 'TolFun', 0.00001, ...
+                'verbose', 2, 'init', 'wgmm', 'initargs', struct('wgmm', wginit));
 % %             
             % reconstruction
             srecon = S.Recon;
@@ -167,82 +208,6 @@ function wg = subvol2iterppcawgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmM
 %         end
 %         
         fprintf('iter-ppca cluster %d done in %5.3fs\n', k, toc);
-    end
-    
-    %% recon in atl space
-    if exist('optionalSubvolSaveMatFileName', 'var')
-        tic;
-        Y_hat = zeros(size(dsPatcheso));
-        for k = 1:gmmK 
-            X0 = dsPatcheso(clusterIdx==k,:); 
-            W0 = wtPatcheso(clusterIdx==k,:); 
-
-            X0(W0<threshold) = nan; 
-            mu = mean(Ssave{k}.Recon);
-            Y_hat(clusterIdx == k, :) = ppcax_recon(X0, Ssave{k}.W, Ssave{k}.v, mu);
-        end
-
-        for i = 1:srcgridsize(end)
-            nVols = size(dsSubvols, 4);
-            nVoxels = size(dsPatcheso, 1) ./ nVols;
-            idx = ((i-1)* nVoxels + 1):i*nVoxels;
-            reconVols(:,:,:,i) = patchlib.quilt(Y_hat(idx, :), [srcgridsize(1:3), 1], [patchSize, 1]);
-            i
-        end
-        
-        reconWeight = patchlib.quilt(double(Y_hat(idx, :) *0 + 1), [srcgridsize(1:3), 1], [patchSize, 1]);
-        
-        reconMasks = wtPatcheso;
-        q = load(dsSubvolMat, 'nfo');
-        reconLoc = q.nfo.subvolLoc;
-        save(optionalSubvolSaveMatFileName, 'reconVols', 'reconMasks', 'reconLoc', 'reconWeight', '-v7.3');
-        toc
-    end
-    
-    %% subject-specific manual testing
-    doingmanualtesting = false;
-    if doingmanualtesting 
-        Y_hat = zeros(size(dsPatcheso));
-        for k = 1:gmmK 
-            X0 = dsPatcheso(clusterIdx==k,:); 
-            W0 = wtPatcheso(clusterIdx==k,:); 
-
-            X0(W0<threshold) = nan; 
-            mu = mean(Ssave{k}.Recon);
-            Y_hat(clusterIdx == k, :) = ppcax_recon(X0, Ssave{k}.W, Ssave{k}.v, mu);
-        end
-
-        volno = 23;
-        nVols = size(dsSubvols, 4);
-        nVoxels = size(dsPatcheso, 1) ./ nVols;
-
-        idx = ((volno-1)* nVoxels + 1):volno*nVoxels;
-
-
-        volsppca = patchlib.quilt(Y_hat(idx, :), [srcgridsize(1:3), 1], [patchSize, 1]);
-        %view3D(vol);
-
-        Y_hat2 = zeros(size(dsPatcheso));
-        Y_hat3 = zeros(size(dsPatcheso));
-        for i = idx
-            k = clusterIdx(i);
-
-            M0 = wtPatcheso(i,:)>=threshold;
-            x = dsPatcheso(i,:);
-            x(~M0) = nan; 
-
-            Y_hat2(i, :) = paffine.reconSubjPatch(x, logical(M0), logical(M0*0+1), means(k, :)', sigmas(:,:,k)); 
-            Y_hat3(i, :) = paffine.reconSubjPatch(x, logical(M0), logical(M0*0+1), means0(k, :)', sigmas0(:,:,k)); 
-            i
-        end
-        volppcarecon = patchlib.quilt(Y_hat2(idx, :), [srcgridsize(1:3), 1], [patchSize, 1]);
-        vol0recon = patchlib.quilt(Y_hat3(idx, :), [srcgridsize(1:3), 1], [patchSize, 1]);
-        %view3D(vol);
-
-        volds = patchlib.quilt(dsPatcheso(idx,:), [srcgridsize(1:3), 1], [patchSize, 1]);
-        volwt = patchlib.quilt(wtPatcheso(idx,:), [srcgridsize(1:3), 1], [patchSize, 1]);
-
-        view3Dopt(volds, volwt, volsppca, volppcarecon, vol0recon);
     end
 
     %% save wgmm
