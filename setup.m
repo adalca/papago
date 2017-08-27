@@ -34,7 +34,7 @@ else
         
         case 'adalca'
             TOOLBOXES_PATH = '/data/vision/polina/users/adalca/MATLAB/toolboxes/';
-            SYNTHESIS_DATA_PATH = '/data/vision/polina/projects/stroke/work/patchSynthesis/data';
+            SYNTHESIS_DATA_PATH = '/data/vision/polina/projects/stroke/work/patchSynthesis/data/';
             GENERAL_DATA_PATH = SYNTHESIS_DATA_PATH;
             OUTPUT_PATH = '/data/vision/polina/scratch/adalca/patchSynthesis/output/';
     end

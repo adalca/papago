@@ -91,6 +91,9 @@ function md = restorationmd(dsAmounts, buildpath, savepath, name)
     for s = dsAmounts % downsample amount
         for u = 1:s % upsample amount
 
+            mod = sprintf('%s_ds%d_us%d_ANTs_reg_warped.nii.gz', '%s', s, u);
+            md.addModality(sprintf('Ds%dUs%dANTsReg', s, u), mod);
+            
             mod = sprintf('%s_ds%d_us%d_reg.nii.gz', '%s', s, u);
             md.addModality(sprintf('Ds%dUs%dReg', s, u), mod);
 

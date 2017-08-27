@@ -74,8 +74,6 @@ function processSubject(md, subjid, dsRate, intensityNorm, atlMods, regType, pad
         md.applyfun(dsfn, {Ds, DsIso}, 'include', subjid); % meant to be upsampled to an isotropic-resolution (but bad quality) after ds.
         md.applyfun(usfnlin, {DsIso, DsUs, DsUsMark}, 'include', subjid);
         md.applyfun(usfnnn, {DsIso, DsUsNN, DsUsMark}, 'include', subjid);
-        
-
     end
     
     % crop iso to match DsXUsX
