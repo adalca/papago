@@ -10,12 +10,11 @@ function postProcessSubject(md, subjid, dsRate, usRates)
     doseg = sys.isfile(md.getModality('seg', subjid));
     
     %% Perform registration via DsXUsX rigid registration
-    antsfile = md.loadModality(sprintf('Ds%dUs%dANTsReg', dsRate, dsRate), subjid);
-    preregmod = sprintf('Ds%dUs%dRegMat', dsRate, dsRate);
-    DsUsReg = sprintf('Ds%dUs%dReg', dsRate, dsRate);
-    DsUs = sprintf('Ds%dUs%d', dsRate, dsRate);
-    md.register(DsUs, antsfile, 'affine', 'monomodal', ...
-        'saveModality', DsUsReg, 'savetformModality', preregmod, 'include', subjid);
+    
+    antsfile = md.getModality(sprintf('Ds%dUs%dANTsAffine', dsRate, dsRate), subjid);
+    preregmod = md.getModality(sprintf('Ds%dUs%dRegMat', dsRate, dsRate), subjid);
+    tform = antsAffine2tformAffine(antsfile);
+    save(preregmod, 'tform');
     
     usRatesSorted = sort(usRates, 'descend');
     for usRate = usRatesSorted
