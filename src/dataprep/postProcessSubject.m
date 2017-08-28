@@ -10,17 +10,19 @@ function postProcessSubject(md, subjid, dsRate, usRates)
     doseg = sys.isfile(md.getModality('seg', subjid));
     
     %% Perform registration via DsXUsX rigid registration
-    antsfile = md.loadModality(sprintf('Ds%dUs%dANTsReg', dsRate, dsRate), subjid);
+    antsNii = md.loadModality(sprintf('Ds%dUs%dANTsReg', dsRate, dsRate), subjid);
+    antsNiiFilename = md.getModality(sprintf('Ds%dUs%dANTsReg', dsRate, dsRate), subjid);
+    fprintf('Using ANTs warped file %s and registering to it...\n', antsNiiFilename)
     preregmod = sprintf('Ds%dUs%dRegMat', dsRate, dsRate);
     DsUsReg = sprintf('Ds%dUs%dReg', dsRate, dsRate);
     DsUs = sprintf('Ds%dUs%d', dsRate, dsRate);
-    md.register(DsUs, antsfile, 'affine', 'monomodal', ...
+    md.register(DsUs, antsNii, 'affine', 'monomodal', ...
         'saveModality', DsUsReg, 'savetformModality', preregmod, 'include', subjid);
     
     usRatesSorted = sort(usRates, 'descend');
     for usRate = usRatesSorted
         % prepare atlas file (for applying warp)
-        antsfile = md.loadModality(sprintf('Ds%dUs%dANTsReg', dsRate, usRate), subjid);
+        antsNii = md.loadModality(sprintf('Ds%dUs%dANTsReg', dsRate, usRate), subjid);
 
         % modality names for this dsRate and usRate
         IsoDsUssize = sprintf('Iso2Ds%dUs%dsize', dsRate, usRate);
@@ -32,18 +34,18 @@ function postProcessSubject(md, subjid, dsRate, usRates)
         Iso2DsUssizeReg = sprintf('Iso2Ds%dUs%dsizeReg', dsRate, usRate);
 
         % apply "dsXusX" registration to modality and to mask
-        md.register(DsUs, antsfile, 'affine', 'monomodal', ...
+        md.register(DsUs, antsNii, 'affine', 'monomodal', ...
             'saveModality', DsUsReg, 'loadtformModality', preregmod, 'include', subjid);
-        md.register(DsUsMark, antsfile, 'affine', 'monomodal', ...
+        md.register(DsUsMark, antsNii, 'affine', 'monomodal', ...
             'saveModality', DsUsRegMask, 'loadtformModality', preregmod, 'include', subjid);
-        md.register(IsoDsUssize, antsfile, 'affine', 'monomodal', ...
+        md.register(IsoDsUssize, antsNii, 'affine', 'monomodal', ...
             'saveModality', Iso2DsUssizeReg, 'loadtformModality', preregmod, 'include', subjid);
         
         % segmentations
         if doseg
             DsUsSeg = sprintf('Ds%dUs%dSeg', dsRate, usRate);
             DsUsRegSeg = sprintf('Ds%dUs%dRegSeg', dsRate, usRate); % use the original Ds5Us5!
-            md.register(DsUsSeg, atlfile, 'affine', 'multimodal', ...
+            md.register(DsUsSeg, antsNii, 'affine', 'multimodal', ...
                 'saveModality', DsUsRegSeg, 'loadtformModality', preregmod, 'registeredVolumeInterp', 'nearest', 'include', subjid);        
         end
     end
