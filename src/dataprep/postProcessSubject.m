@@ -1,4 +1,4 @@
-function postProcessSubject(md, subjid, dsRate, regType, usRates)
+function postProcessSubject(md, subjid, dsRate, usRates)
 % processing after ANTs Registrations are done.
 
     if ischar(md), load(md); end
@@ -20,7 +20,7 @@ function postProcessSubject(md, subjid, dsRate, regType, usRates)
     usRatesSorted = sort(usRates, 'descend');
     for usRate = usRatesSorted
         % prepare atlas file (for applying warp)
-        atlfile = eval(sprintf('atlMods.%s_DS%d_US%d', upper(regType), dsRate, usRate));
+        antsfile = sprintf('Ds%dUs%dANTsReg', dsRate, usRate);
 
         % modality names for this dsRate and usRate
         IsoDsUssize = sprintf('Iso2Ds%dUs%dsize', dsRate, usRate);
@@ -32,18 +32,18 @@ function postProcessSubject(md, subjid, dsRate, regType, usRates)
         Iso2DsUssizeReg = sprintf('Iso2Ds%dUs%dsizeReg', dsRate, usRate);
 
         % apply "dsXusX" registration to modality and to mask
-        md.register(DsUs, atlfile, 'rigid', 'monomodal', ...
+        md.register(DsUs, antsfile, 'affine', 'monomodal', ...
             'saveModality', DsUsReg, 'loadtformModality', preregmod, 'include', subjid);
-        md.register(DsUsMark, atlfile, 'rigid', 'monomodal', ...
+        md.register(DsUsMark, antsfile, 'affine', 'monomodal', ...
             'saveModality', DsUsRegMask, 'loadtformModality', preregmod, 'include', subjid);
-        md.register(IsoDsUssize, atlfile, 'rigid', 'monomodal', ...
+        md.register(IsoDsUssize, antsfile, 'affine', 'monomodal', ...
             'saveModality', Iso2DsUssizeReg, 'loadtformModality', preregmod, 'include', subjid);
         
         % segmentations
         if doseg
             DsUsSeg = sprintf('Ds%dUs%dSeg', dsRate, usRate);
             DsUsRegSeg = sprintf('Ds%dUs%dRegSeg', dsRate, usRate); % use the original Ds5Us5!
-            md.register(DsUsSeg, atlfile, 'rigid', 'multimodal', ...
+            md.register(DsUsSeg, atlfile, 'affine', 'multimodal', ...
                 'saveModality', DsUsRegSeg, 'loadtformModality', preregmod, 'registeredVolumeInterp', 'nearest', 'include', subjid);        
         end
     end
