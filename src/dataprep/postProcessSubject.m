@@ -10,7 +10,7 @@ function postProcessSubject(md, subjid, dsRate, usRates)
     doseg = sys.isfile(md.getModality('seg', subjid));
     
     %% Perform registration via DsXUsX rigid registration
-    antsfile = sprintf('Ds%dUs%dANTsReg', dsRate, dsRate);
+    antsfile = md.loadModality(sprintf('Ds%dUs%dANTsReg', dsRate, dsRate), subjid);
     preregmod = sprintf('Ds%dUs%dRegMat', dsRate, dsRate);
     DsUsReg = sprintf('Ds%dUs%dReg', dsRate, dsRate);
     DsUs = sprintf('Ds%dUs%d', dsRate, dsRate);
@@ -20,7 +20,7 @@ function postProcessSubject(md, subjid, dsRate, usRates)
     usRatesSorted = sort(usRates, 'descend');
     for usRate = usRatesSorted
         % prepare atlas file (for applying warp)
-        antsfile = sprintf('Ds%dUs%dANTsReg', dsRate, usRate);
+        antsfile = md.loadModality(sprintf('Ds%dUs%dANTsReg', dsRate, usRate), subjid);
 
         % modality names for this dsRate and usRate
         IsoDsUssize = sprintf('Iso2Ds%dUs%dsize', dsRate, usRate);
