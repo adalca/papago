@@ -1,9 +1,8 @@
-function postProcessSubject(md, subjid, dsRate, atlMods, regType, usRates)
+function postProcessSubject(md, subjid, dsRate, regType, usRates)
 % processing after ANTs Registrations are done.
 
     if ischar(md), load(md); end
     if ischar(subjid) && ~isempty(str2double(subjid)), subjid = str2double(subjid); end
-    if ischar(atlMods), load(atlMods); end
 	if ischar(dsRate), dsRate = str2double(dsRate); end
     if ischar(usRates), usRates = str2double(usRates); end
     
