@@ -10,14 +10,24 @@ function postProcessSubject(md, subjid, dsRate, usRates)
     doseg = sys.isfile(md.getModality('seg', subjid));
     
     %% Perform registration via DsXUsX rigid registration
-    antsNii = md.loadModality(sprintf('Ds%dUs%dANTsReg', dsRate, dsRate), subjid);
-    antsNiiFilename = md.getModality(sprintf('Ds%dUs%dANTsReg', dsRate, dsRate), subjid);
-    fprintf('Using ANTs warped file %s and registering to it...\n', antsNiiFilename)
-    preregmod = sprintf('Ds%dUs%dRegMat', dsRate, dsRate);
-    DsUsReg = sprintf('Ds%dUs%dReg', dsRate, dsRate);
-    DsUs = sprintf('Ds%dUs%d', dsRate, dsRate);
-    md.register(DsUs, antsNii, 'affine', 'monomodal', ...
-        'saveModality', DsUsReg, 'savetformModality', preregmod, 'include', subjid);
+    antsfile = md.getModality(sprintf('Ds%dUs%dANTsAffine', dsRate, dsRate), subjid);
+    preregmod = sprintf('Ds%dUs%dRegMat', dsRate, dsRate)
+    preregfile = md.getModality(preregmod, subjid);
+    tform = antsAffine2tformAffine3d(antsfile);
+    tform = tform.invert;
+
+    % unfortunately the antsAffine2tformAffine3d doesn't seem to
+    % return a transform that exactly matches :(
+    [optimizer, metric] = imregconfig('monomodal');
+    subjnii = md.loadModality(sprintf('Ds%dUs%d', dsRate, dsRate), subjid);
+    dstNii = md.loadModality(sprintf('Ds%dUs%dANTsReg', dsRate, dsRate), subjid);
+    d = dstNii.hdr.dime.pixdim(2:4);
+    zi = imwarp(subjnii.img, tform, 'OutputView', imref3d(size(dstNii.img), d(2), d(1), d(3)));
+    bb = imregtform(zi, dstNii.img, 'similarity', optimizer, metric);
+    tform.T = tform.T * bb.T;
+
+    % save tform
+    save(preregfile, 'tform');
     
     usRatesSorted = sort(usRates, 'descend');
     for usRate = usRatesSorted
