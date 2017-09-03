@@ -124,7 +124,7 @@ function subvol2diagWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, in
 
     % get patches
     enPatchCol = patchlib.vol2lib(croppedEnSubvols, [patchSize, 1]);
-    enDs = enPatchCol(dataridx, :);
+    enDs = enPatchCol(trainsetIdx, :);
 
     % adni
     enFit = polyfit([lowEntropy, highEntropy], [lowThr, highThr], 1);
