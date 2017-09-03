@@ -10,16 +10,29 @@ function postProcessSubject(md, subjid, dsRate, usRates)
     doseg = sys.isfile(md.getModality('seg', subjid));
     
     %% Perform registration via DsXUsX rigid registration
-    
     antsfile = md.getModality(sprintf('Ds%dUs%dANTsAffine', dsRate, dsRate), subjid);
-    preregmod = md.getModality(sprintf('Ds%dUs%dRegMat', dsRate, dsRate), subjid);
-    tform = antsAffine2tformAffine(antsfile);
-    save(preregmod, 'tform');
+    preregmod = sprintf('Ds%dUs%dRegMat', dsRate, dsRate)
+    preregfile = md.getModality(preregmod, subjid);
+    tform = antsAffine2tformAffine3d(antsfile);
+    tform = tform.invert;
+
+    % unfortunately the antsAffine2tformAffine3d doesn't seem to
+    % return a transform that exactly matches :(
+    [optimizer, metric] = imregconfig('monomodal');
+    subjnii = md.loadModality(sprintf('Ds%dUs%d', dsRate, dsRate), subjid);
+    dstNii = md.loadModality(sprintf('Ds%dUs%dANTsReg', dsRate, dsRate), subjid);
+    d = dstNii.hdr.dime.pixdim(2:4);
+    zi = imwarp(subjnii.img, tform, 'OutputView', imref3d(size(dstNii.img), d(2), d(1), d(3)));
+    bb = imregtform(zi, dstNii.img, 'similarity', optimizer, metric);
+    tform.T = tform.T * bb.T;
+
+    % save tform
+    save(preregfile, 'tform');
     
     usRatesSorted = sort(usRates, 'descend');
     for usRate = usRatesSorted
         % prepare atlas file (for applying warp)
-        antsfile = md.loadModality(sprintf('Ds%dUs%dANTsReg', dsRate, usRate), subjid);
+        antsNii = md.loadModality(sprintf('Ds%dUs%dANTsReg', dsRate, usRate), subjid);
 
         % modality names for this dsRate and usRate
         IsoDsUssize = sprintf('Iso2Ds%dUs%dsize', dsRate, usRate);
@@ -31,18 +44,18 @@ function postProcessSubject(md, subjid, dsRate, usRates)
         Iso2DsUssizeReg = sprintf('Iso2Ds%dUs%dsizeReg', dsRate, usRate);
 
         % apply "dsXusX" registration to modality and to mask
-        md.register(DsUs, antsfile, 'affine', 'monomodal', ...
+        md.register(DsUs, antsNii, 'affine', 'monomodal', ...
             'saveModality', DsUsReg, 'loadtformModality', preregmod, 'include', subjid);
-        md.register(DsUsMark, antsfile, 'affine', 'monomodal', ...
+        md.register(DsUsMark, antsNii, 'affine', 'monomodal', ...
             'saveModality', DsUsRegMask, 'loadtformModality', preregmod, 'include', subjid);
-        md.register(IsoDsUssize, antsfile, 'affine', 'monomodal', ...
+        md.register(IsoDsUssize, antsNii, 'affine', 'monomodal', ...
             'saveModality', Iso2DsUssizeReg, 'loadtformModality', preregmod, 'include', subjid);
         
         % segmentations
         if doseg
             DsUsSeg = sprintf('Ds%dUs%dSeg', dsRate, usRate);
             DsUsRegSeg = sprintf('Ds%dUs%dRegSeg', dsRate, usRate); % use the original Ds5Us5!
-            md.register(DsUsSeg, atlfile, 'affine', 'multimodal', ...
+            md.register(DsUsSeg, antsNii, 'affine', 'multimodal', ...
                 'saveModality', DsUsRegSeg, 'loadtformModality', preregmod, 'registeredVolumeInterp', 'nearest', 'include', subjid);        
         end
     end
