@@ -451,7 +451,8 @@ function obj = experimentalLogmvnpdfW(yobs, muobs, Wobs, v)
             %        = det(v * L * L' + v I
             %        = det(v (L * L' + I)
             %        = v^dHigh * det(L' * L + I) % By SDI
-            t2 = 0.5 * (dHigh * log(v(k))) + 0.5 * logdet(sLow);
+            lds = logdet(sLow);
+            t2 = 0.5 * (dHigh * log(v(k))) + 0.5 * lds;
         else
         
             % method 2

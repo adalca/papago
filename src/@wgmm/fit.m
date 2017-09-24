@@ -26,9 +26,7 @@ function fwgmm = fit(data, varargin)
         
         % First E step and ll
         if wg.opts.maxIter > 0 % only compute expectation and ll
-%             warning('SKIPPING E STEP');
             [ll(1), wg.expect] = wg.estep(data);
-%             ll(1) = wg.estep(data);
         else 
             ll = 0;
         end

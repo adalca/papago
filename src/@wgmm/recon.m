@@ -95,6 +95,7 @@ function varargout = recon(wg, data, method, varargin)
             wg.opts.model.name = 'latentMissingR';
             warning('TRY TO DO non-R based expectation!');
             [lll, expect] = wg.estep(data);
+            
             maxk = argmax(expect.gammank, [], 2);
             wg.opts.model.name = name;
             
@@ -144,9 +145,6 @@ function varargout = recon(wg, data, method, varargin)
 %                 yRecon{i}(obsIdx) = ySubjObs;
                 yReconChk{i} = muSubj' + X_ki' * w';
                 yRecon{i} = yReconChk{i};
-
-                
-
             end
             if rcondwarnings > 0
                 warning('WW'' is badly conditioned for %d patches. Forcing y = Wx + mu', rcondwarnings);

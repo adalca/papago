@@ -365,8 +365,8 @@ function wg = init(wg, data, varargin)
             % zero-means
             wg.params.mu = varargin{1}.wgmm.params.mu;
             wg.params.pi = ones(1,K) ./ K;
-            wg.params.W = randn(D, wg.opts.model.dopca, K);
-            wg.params.sigmasq = rand(1, K);
+            wg.params.W = randn(D, wg.opts.model.dopca, K)*0.001;
+            wg.params.sigmasq = rand(1, K)*0.0001;
             
             % initiate sigmas
             for k = 1:K
@@ -453,10 +453,10 @@ function wg = init(wg, data, varargin)
                 wgi.params.pi = wgi.params.pi(k);
                 wgi.params.W = wgi.params.W(:, :, k);
 %                 wgk = wgmmfit(d, 'modelName', 'latentSubspace', 'modelArgs', wg.opts.model, ...
-%                     'init', 'latentSubspace-randW-mu', 'verbose', 1, 'replicates', 3, 'MaxIter', 10);
+%                     'init', 'latentSubspace-randW', 'verbose', 1, 'replicates', 3, 'MaxIter', 10);
                 wgk = wgmmfit(d, 'modelName', 'latentSubspace', 'modelArgs', wg.opts.model, ...
                     'init', 'latentSubspace-diagW-mu', 'initArgs', struct('wgmm', wgi), ...
-                    'verbose', 1, 'replicates', 3, 'MaxIter', 20);
+                    'verbose', 1, 'replicates', 1, 'MaxIter', 10);
                 %[~, ~, ~, mu, ~, rsltStruct] = ppcax(x, wg.opts.model.dopca, 'Options', struct('Display', 'iter', 'MaxIter', 20, 'TolFun', 1e-3, 'TolX', 1e-3));
                 wg.params.mu(k,:) = wgk.params.mu;
                 wg.params.W(:,:,k) = wgk.params.W;
@@ -867,6 +867,7 @@ function wg = init(wg, data, varargin)
                 end
                
                 if isfield(varargin{1}, 'sigmaCorrConv') && varargin{1}.sigmaCorrConv
+                warning('Running sigma corr to convergence. Unclear if this is a good idea!');
                     if isfield(data, 'allW')
                         d = struct('Y', data.allY(cidx, :), 'W', data.allW(cidx, :), 'K', 1);
                     else

@@ -23,7 +23,7 @@ function params = mstepLatentSubspace(wg, data)
     newW = zeros(dHigh, dLow, K);
     newsigmasq = zeros(1, K);
     
-    doOld = true;
+    doOld = false;
     if doOld
         muOld = zeros(K, dHigh);
         newWOld = zeros(dHigh, dLow, K);
@@ -77,6 +77,13 @@ function params = mstepLatentSubspace(wg, data)
         assert(isclean(Xhat), 'Xhat is not clean :(');
         assert(isclean(Shat), 'Shat is not clean :(');
         
+        if isfield(data, 'hackx') && data.hackx && numel(wg.stats) <= 1
+            warning('HACKING X WITH RANDOM INIT');
+            Xhat = randn(size(Xhat));
+            Shat = repmat(eye(dLow), [1, 1, nEff]);
+        end
+        
+        
         % TODO. testing various hacks.
         if isfield(data, 'estepW') && numel(wg.stats) < 10
             warning('mstep hack (end)'); 
@@ -85,6 +92,7 @@ function params = mstepLatentSubspace(wg, data)
         
         % compute old mu update (just for comparison)
         if doOld
+            warning('checking old mu...');
             muDenom = zeros(1, dHigh);
             for ei = 1:nEff
                 i = gEffIdx(ei);
