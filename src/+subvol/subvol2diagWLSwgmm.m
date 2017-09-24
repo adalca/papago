@@ -18,14 +18,12 @@ function subvol2diagWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, in
     nPatches = params.nPatches; 
     
     gmmTolerance = params.gmmTolerance; 
-    regstring = params.regstring;
     
     diffPad = params.volPad;
     dLow = params.dLow;
     maxIters = params.maxIters;
     minIters = params.minIters;
     TolFun = params.TolFun;
-    wthr = params.threshold;
     
     lowEntropy = params.lowEntropy;
     highEntropy = params.highEntropy;
@@ -48,6 +46,7 @@ function subvol2diagWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, in
         wtSubvols = wtSubvolMat;
     end
     clear q;
+    assert(all(size(dsSubvols) == size(wtSubvols)));
     fprintf('took %5.3f to load the subvolumes\n', toc);
 
     tic
@@ -55,6 +54,7 @@ function subvol2diagWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, in
     if isnumeric(percVolsKeep)
         nSubj = size(dsSubvols, 4);
         nSubjkeep = round(percVolsKeep .* nSubj);
+        fprintf('keeping %d of %d subjects\n', nSubjkeep, nSubj);
         vidx = randsample(nSubj, nSubjkeep);
     else % assume it's a file with numbers
         fid = fopen(percVolsKeep);
@@ -78,8 +78,7 @@ function subvol2diagWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, in
     wtSubvolsCrop = cropVolume(wtSubvols, [diffPad+1 1], [volSize-diffPad nSubj]);
     
     fprintf('took %5.3f to process the %d subvolumes\n', toc, nSubj);
-    
-    
+       
 
     
     %% get patches and init.
@@ -91,16 +90,16 @@ function subvol2diagWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, in
     if ~sys.isfile(clusterIdxMat)
         trainsetIdx = randsample(size(dsPatches, 1), nPatches);
         Y = dsPatches(trainsetIdx, :);
-        data = struct('Y', Y, 'W', wtPatches(trainsetIdx, :) > wthr, 'K', gmmK);
 
-        
-        gmmopt = statset('Display', 'iter', 'MaxIter', 3, 'TolFun', gmmTolerance);
+        % this is unnecessary for diag method. we should get rid of it...
+        gmmopt = statset('Display', 'final', 'MaxIter', 9, 'TolFun', gmmTolerance);
         % gmmClust = fitgmdist(smallBlurPatches, gmmK, regstring, 1e-4, 'replicates', 3, 'Options', gmmopt);
         % gmdist = gmdistribution.fit(Y, gmmK, regstring, 1e-4, 'replicates', 3, 'Options', gmmopt);
         % [~, wgDs] = fitgmdist2wgmmLS(Y, gmmK, 1e-4, 3, gmmopt, dLow);
         [wgDs, wgDsLs] = fitgmdist2wgmmLS(Y, gmmK, 1e-4, 3, gmmopt, dLow);
         
         save(clusterIdxMat, 'trainsetIdx', 'wgDs', 'wgDsLs');
+        fprintf('took %5.3f to prepare wgDs\n', toc);
     else
         q = load(clusterIdxMat, 'trainsetIdx', 'wgDs', 'wgDsLs');
         trainsetIdx = q.trainsetIdx;
@@ -109,45 +108,51 @@ function subvol2diagWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, in
         assert(numel(trainsetIdx) == nPatches, 'The saved number of patches is incorrect');
         
         Y = dsPatches(trainsetIdx, :);
-        data = struct('Y', Y, 'W', wtPatches(trainsetIdx, :) > wthr, 'K', gmmK);
+        fprintf('took %5.3f to load wgDs and Idx from %s\n', toc, clusterIdxMat);
     end
+    disp(size(Y))
     
 
     %% entropy to update W
     
     % get entropy of ds subvolumes
+    tic
     enSubvol = dsSubvols*nan; 
     for i = 1:size(enSubvol, 4)
         enSubvol(:,:,:,i) = entropyfilt(dsSubvols(:,:,:,i), getnhood(strel('sphere', 2))); 
     end
     croppedEnSubvols = cropVolume(enSubvol, [diffPad + 1, 1], [volSize - diffPad, nSubj]);
+    assert(all(size(croppedEnSubvols) == size(wtSubvolsCrop)));
 
     % get patches
     enPatchCol = patchlib.vol2lib(croppedEnSubvols, [patchSize, 1]);
     enDs = enPatchCol(trainsetIdx, :);
 
     % adni
+    fprintf('entropy params: [lowEntropy %3.2f, highEntropy, %3.2f], [lowThr %3.2f, highThr %3.2f]\n', lowEntropy, highEntropy, lowThr, highThr);
     enFit = polyfit([lowEntropy, highEntropy], [lowThr, highThr], 1);
     wtThrEnDs = within([0.01, 0.85], polyval(enFit, enDs));
     
     w = wtPatches(trainsetIdx, :);
     wtEnDs = w > wtThrEnDs;
+    fprintf('mean entropy-based wt: %3.2f\n', mean(wtEnDs(:)))
+
     
-    data = struct('Y', data.Y, 'W', double(wtEnDs), 'K', K);
+    data = struct('Y', Y, 'W', double(wtEnDs), 'K', gmmK);
+    fprintf('took %5.3f to prepare entropy weighting\n', toc);
     
     %% run    
     
-        % prepare the wgDsDiag
-        wgDsLs.expect = wgDs.expect;
-        
-        dHigh = size(Y, 2);
-        wgDsLsDiag = wgmm(wgDsLs.opts, wgDsLs.params);
-        wgDsLsDiag.params.sigma = repmat(eye(dHigh), [1,1,gmmK]); 
-        wgDsLsDiag.params.W = wgDsLsDiag.params.sigma(:, 1:dLow, :);
-        wgDsLsDiag.expect = wgDs.expect;
+    % prepare the wgDsDiag
+    wgDsLs.expect = wgDs.expect;
+    
+    dHigh = size(Y, 2);
+    wgDsLsDiag = wgmm(wgDsLs.opts, wgDsLs.params);
+    wgDsLsDiag.params.sigma = repmat(eye(dHigh), [1,1,gmmK]); 
+    wgDsLsDiag.params.W = wgDsLsDiag.params.sigma(:, 1:dLow, :);
+    wgDsLsDiag.expect = wgDs.expect;
     
     % ecm
-    itersteps = params.ppcaMinK:params.ppcaKskip:params.ppcaMaxK;
     wg = wgmmfit(data, 'modelName', 'latentSubspace', 'modelArgs', struct('dopca', dLow), ...
         'minIter', minIters, 'maxIter', maxIters, 'TolFun', TolFun, 'verbose', 2, 'replicates', 1, ...
         'init', 'wgmm', 'initArgs', struct('wgmm', wgDsLsDiag));

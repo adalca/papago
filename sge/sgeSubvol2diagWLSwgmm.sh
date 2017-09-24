@@ -2,10 +2,10 @@
 # sgeSubvol2diagLSwgmm
 #
 # examples
-# ./sgeSubvol2diagWLSwgmm.sh ADNI_T1_baselines aug_2017 Ds5Us5Reg wholevol LS_K5_dec02
+# ./sgeSubvol2diagWLSwgmm.sh ADNI_T1_baselines aug_2017 Ds5Us5Reg ds5us5_gs11x11x11 wholevol diagWLSwgmm
 
 if [ "$#" -lt 5 ] ; then
-  echo "Usage: $0 dataName subvolVer mod proctype" >&2
+  echo "Usage: $0 dataName subvolVer mod subvol_suffix proctype suffix" >&2
   exit 1
 fi
 
@@ -13,8 +13,9 @@ fi
 dataName=$1 # ADNI_T1_baselines or stroke or buckner
 subvolVer=$2 # e.g. mar12_2016
 mod=$3 # e.g. Ds5Us5Reg. Mask will be added for the weight.
-procType=$4 # wholevol brain_pad10 brain_pad30
-suffix="$5" # e.g. LM_K5_nov29
+subvol_suffix=$4  # subvol_suffix='ds5us5_gs11x11x11'
+procType=$5 # wholevol brain_pad10 brain_pad30
+suffix="$6" # e.g. LM_K5_nov29
 
 # set some settings based on datatype
 if [ "$dataName" = "stroke" ] ; then
@@ -24,24 +25,25 @@ if [ "$dataName" = "stroke" ] ; then
   logfilePost="selidx2loc_ds7us5_v2.txt"
 else 
   ininame="subvol2diagWLSwgmm.ini" 
-  logfilePost="selidx2loc_ds5us5_gs11x11x11.txt"
+  logfilePost="selidx2loc_${subvol_suffix}.txt"
 fi
 
 # cluster parameters
 clustertype='vision'
 clustertype='sge' 
-nVisionCmdQueues=50
+nVisionCmdQueues=10
 
 # possible vision machines
 possMachines=("vision11" "vision12" "vision13" "vision14" "vision15" "vision16" "vision17" "vision18" "vision19" "vision20" "vision21" "vision22" "vision23" "vision24" "vision25" "vision26" "vision27" "vision28" "vision29" "vision30" "vision31" "vision32" "vision33" "vision34" "vision35" "vision36" "vision37" "vision38" "asia" "africa" "america" "europe" "antarctica" "australia" "vision01" "vision02" "vision03" "vision04" "vision05" "vision06" "vision07" "vision08" "vision09" "vision10" )
-# possMachines=("asia" "africa" "america" "antarctica" "australia" "monday" "tuesday" "wednesday" "thursday" "friday" "saturday")
+possMachines=("asia" "africa" "america" "antarctica" "australia" "monday" "tuesday" "wednesday" "thursday" "friday" "saturday")
 #  "quickstep" "tango" "waltz" "swing" "rumba"
 possMachines=("monday" "tuesday" "wednesday" "thursday" "friday" "saturday")
 possMachines=("vision01" "vision02" "vision03" "vision04" "vision05" "vision06" "vision07" "vision10" "vision11" "vision12" "vision13" "vision14" "vision16" "vision17" "vision18" "vision19" "vision21" "vision22" "vision25" "vision27" "vision28" "vision29" "vision32" "vision35" "vision37" "vision38")
 # possMachines=("vision08" "vision09" "vision15" "vision18" "vision20" "vision22" "vision30" "vision34")
 possMachines=("perilla"  "lemongrass" "quassia" "orris" "lovage" "boldo" "olida" "cassia" "jimbu" "salep" "hickory" "peppercorn" "cardamom" "fenugreek" "rosemary" "paprika")
 # "athelas" "mugwort" "advieh" "sassafras"
-totlimit=500
+possMachines=("asia" "africa" "america" "antarctica" "australia" "monday" "tuesday" "wednesday" "thursday" "friday" "saturday")
+totlimit=100
 
 
 # possMachines=("sorbet" "redbean")
@@ -58,13 +60,13 @@ mcr=/data/vision/polina/shared_software/MCR/v91/
 
 # project paths
 OUTPUT_PATH="/data/vision/polina/projects/patchSynthesis/data/${dataName}/subvols/${procType}/${subvolVer}/";
-SUBVOLFILES_PATH="${OUTPUT_PATH}/subvols/"
-RECONFILES_PATH="${OUTPUT_PATH}/wgmm/${suffix}"
+SUBVOLFILES_PATH="${OUTPUT_PATH}/subvols/${subvol_suffix}/"
+RECONFILES_PATH="${OUTPUT_PATH}/wgmm/${suffix}/"
 PROJECT_PATH="/data/vision/polina/users/adalca/patchSynthesis/subspace/git-papago/"
 CLUST_PATH="/data/vision/polina/users/adalca/patchSynthesis/subspace/MCC/";
 
 # command shell file
-mccSh="${CLUST_PATH}MCC_mccSubvol2diagLSwgmm/run_mccSubvol2diagWLSwgmm.sh"
+mccSh="${CLUST_PATH}MCC_mccSubvol2diagWLSwgmm/run_mccSubvol2diagWLSwgmm.sh"
 
 # setting files
 locfile="${OUTPUT_PATH}/subvol_loc_files/${logfilePost}"
@@ -116,8 +118,8 @@ do
   mkdir -p ${sgeopath}
   sge_par_o="--sge \"-o ${sgeopath}\""
   sge_par_e="--sge \"-e ${sgeopath}\""
-  sge_par_l="--sge \"-l mem_free=10G \""
-  sge_par_q="--sge \"-q half \""
+  sge_par_l="--sge \"-l mem_free=30G \""
+  sge_par_q="--sge \"-q qOnePerHost \""  # qOnePerHost or half or qSparse
   cmdrunfile="${sgeopath}/subvol2diagLSwgmm_${subvolInd}.sh"
   sgerunfile="${sgeopath}/subvol2diagLSwgmm_${subvolInd}_sge.sh"
   echo ${lcmd} > ${cmdrunfile};
@@ -171,7 +173,7 @@ do
 
   # sleep for a bit to give sge time to deal with the new job (?)
   # exit
-  # sleep 1
+  sleep 1
 done 10< ${locfile}
 
 echo "done $0; submitted $submitted jobs"
