@@ -10,27 +10,15 @@ function subvol2diagWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, in
 
     params = ini2struct(iniFilename); 
     
-    percVolsKeep = params.percVolsKeep; 
-
     % rename the parameters
-    gmmK = params.gmmK; 
+    K = params.nClust;
     patchSize = params.patchSize; 
     nPatches = params.nPatches; 
     
-    gmmTolerance = params.gmmTolerance; 
+    % volume processing
+    volsKeep = params.volsKeep; 
+    diffPad = params.volPad;  
     
-    diffPad = params.volPad;
-    dLow = params.dLow;
-    maxIters = params.maxIters;
-    minIters = params.minIters;
-    TolFun = params.TolFun;
-    
-    lowEntropy = params.lowEntropy;
-    highEntropy = params.highEntropy;
-    lowThr = params.lowThr;
-    highThr = params.highThr;
-    
-
     %% load subvolumes
     tic
     if ischar(dsSubvolMat)
@@ -51,13 +39,14 @@ function subvol2diagWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, in
 
     tic
     % prune volumes
-    if isnumeric(percVolsKeep)
+    if isnumeric(volsKeep)
         nSubj = size(dsSubvols, 4);
-        nSubjkeep = round(percVolsKeep .* nSubj);
+        nSubjkeep = round(volsKeep .* nSubj);
         fprintf('keeping %d of %d subjects\n', nSubjkeep, nSubj);
         vidx = randsample(nSubj, nSubjkeep);
+        
     else % assume it's a file with numbers
-        fid = fopen(percVolsKeep);
+        fid = fopen(volsKeep);
         C = textscan(fid, '%d');
         fclose(fid);
         vidx = cat(1, C{:});
@@ -73,30 +62,31 @@ function subvol2diagWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, in
         diffPad = diffPad * ones(1, 3);
     end
     
-    % crop volumes -- we don't want to learn from the edges of the volumes;
+    % crop ds volumes -- we don't want to learn from the edges of the volumes;
     dsSubvolsCrop = cropVolume(dsSubvols, [diffPad+1 1], [volSize-diffPad nSubj]);
-    wtSubvolsCrop = cropVolume(wtSubvols, [diffPad+1 1], [volSize-diffPad nSubj]);
-    
     fprintf('took %5.3f to process the %d subvolumes\n', toc, nSubj);
        
 
     
     %% get patches and init.
-    dsPatches = patchlib.vol2lib(dsSubvolsCrop, [patchSize 1]);
-    wtPatches = patchlib.vol2lib(wtSubvolsCrop, [patchSize 1]);
-    
+    dsPatches = robustVols2lib(dsSubvolsCrop, patchSize);
+    whos dsSubvolsCrop
+    whos dsPatches
+    clear dsSubvolsCrop;
+
     % Need to select which patches to work with.
     % here we'll use clusterIdxMat as the file to dump the trainsetIdx matrix
     if ~sys.isfile(clusterIdxMat)
         trainsetIdx = randsample(size(dsPatches, 1), nPatches);
         Y = dsPatches(trainsetIdx, :);
+        dso = params.dsGmm;
 
         % this is unnecessary for diag method. we should get rid of it...
-        gmmopt = statset('Display', 'final', 'MaxIter', 9, 'TolFun', gmmTolerance);
+        gmmopt = statset('Display', 'iter', 'MaxIter', dso.maxIter, 'TolFun', dso.tol);
         % gmmClust = fitgmdist(smallBlurPatches, gmmK, regstring, 1e-4, 'replicates', 3, 'Options', gmmopt);
         % gmdist = gmdistribution.fit(Y, gmmK, regstring, 1e-4, 'replicates', 3, 'Options', gmmopt);
         % [~, wgDs] = fitgmdist2wgmmLS(Y, gmmK, 1e-4, 3, gmmopt, dLow);
-        [wgDs, wgDsLs] = fitgmdist2wgmmLS(Y, gmmK, 1e-4, 3, gmmopt, dLow);
+        [wgDs, wgDsLs] = fitgmdist2wgmmLS(Y, params.nClust, dso.regVal, dso.reps, gmmopt, params.wgmm.dLow);
         
         save(clusterIdxMat, 'trainsetIdx', 'wgDs', 'wgDsLs');
         fprintf('took %5.3f to prepare wgDs\n', toc);
@@ -110,7 +100,17 @@ function subvol2diagWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, in
         Y = dsPatches(trainsetIdx, :);
         fprintf('took %5.3f to load wgDs and Idx from %s\n', toc, clusterIdxMat);
     end
+    clear dsPatches
     disp(size(Y))
+    
+    % process weights (later to avoid keeping dsPatches and wtPatches in memory at same time)
+    wtSubvolsCrop = cropVolume(wtSubvols, [diffPad+1 1], [volSize-diffPad nSubj]);
+    wtPatches = robustVols2lib(wtSubvolsCrop, patchSize);
+    sizeWtSubvolsCrop = size(wtSubvolsCrop);
+    clear wtSubvolsCrop;
+    w = wtPatches(trainsetIdx, :);
+    clear wtPatches
+    
     
 
     %% entropy to update W
@@ -122,39 +122,41 @@ function subvol2diagWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, in
         enSubvol(:,:,:,i) = entropyfilt(dsSubvols(:,:,:,i), getnhood(strel('sphere', 2))); 
     end
     croppedEnSubvols = cropVolume(enSubvol, [diffPad + 1, 1], [volSize - diffPad, nSubj]);
-    assert(all(size(croppedEnSubvols) == size(wtSubvolsCrop)));
+    assert(all(size(croppedEnSubvols) == sizeWtSubvolsCrop));
 
     % get patches
-    enPatchCol = patchlib.vol2lib(croppedEnSubvols, [patchSize, 1]);
+    enPatchCol = robustVols2lib(croppedEnSubvols, patchSize);
     enDs = enPatchCol(trainsetIdx, :);
+    clear enPatchCol;
 
     % adni
-    fprintf('entropy params: [lowEntropy %3.2f, highEntropy, %3.2f], [lowThr %3.2f, highThr %3.2f]\n', lowEntropy, highEntropy, lowThr, highThr);
-    enFit = polyfit([lowEntropy, highEntropy], [lowThr, highThr], 1);
-    wtThrEnDs = within([0.01, 0.85], polyval(enFit, enDs));
+    polyx = [params.entropy.lowEntropy, params.entropy.highEntropy];
+    polyy = [params.entropy.lowThr, params.entropy.highThr];
+    enFit = polyfit(polyx, polyy, 1);
+    wtThrEnDs = within([0.01, params.entropy.highThr], polyval(enFit, enDs));
     
-    w = wtPatches(trainsetIdx, :);
     wtEnDs = w > wtThrEnDs;
     fprintf('mean entropy-based wt: %3.2f\n', mean(wtEnDs(:)))
 
-    
-    data = struct('Y', Y, 'W', double(wtEnDs), 'K', gmmK);
+    data = struct('Y', Y, 'W', double(wtEnDs), 'K', K);
     fprintf('took %5.3f to prepare entropy weighting\n', toc);
     
-    %% run    
+    %% run wgmm
+    wgmmOpts = params.wgmm;
     
     % prepare the wgDsDiag
     wgDsLs.expect = wgDs.expect;
     
     dHigh = size(Y, 2);
     wgDsLsDiag = wgmm(wgDsLs.opts, wgDsLs.params);
-    wgDsLsDiag.params.sigma = repmat(eye(dHigh), [1,1,gmmK]); 
-    wgDsLsDiag.params.W = wgDsLsDiag.params.sigma(:, 1:dLow, :);
+    wgDsLsDiag.params.sigma = repmat(eye(dHigh), [1, 1, K]); 
+    wgDsLsDiag.params.W = wgDsLsDiag.params.sigma(:, 1:wgmmOpts.dLow, :);
     wgDsLsDiag.expect = wgDs.expect;
     
     % ecm
-    wg = wgmmfit(data, 'modelName', 'latentSubspace', 'modelArgs', struct('dopca', dLow), ...
-        'minIter', minIters, 'maxIter', maxIters, 'TolFun', TolFun, 'verbose', 2, 'replicates', 1, ...
+    wg = wgmmfit(data, 'modelName', 'latentSubspace', 'modelArgs', struct('dopca', wgmmOpts.dLow), ...
+        'minIter', wgmmOpts.minIters, 'maxIter', wgmmOpts.maxIters, 'TolFun', wgmmOpts.tolFun, ...
+        'verbose', 2, 'replicates', wgmmOpts.reps, ...
         'init', 'wgmm', 'initArgs', struct('wgmm', wgDsLsDiag));
 
     wgwhole = wg;
@@ -170,3 +172,19 @@ function subvol2diagWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, in
         save(wgmmMat, 'wg', 'trainsetIdx', '-v7.3'); 
     end
 end
+
+
+function lib = robustVols2lib(vols, patchSize)
+    try
+        lib = patchlib.vol2lib(vols, [patchSize 1]);
+    catch err
+        fprintf(2, 'vol2lib caught %s\n. Going volume by volume', err.message)
+        nVols = size(vols, 4);
+        libCell = cell(nVols, 1);
+        for i = 1:nVols
+            libCell{i} = patchlib.vol2lib(vols(:,:,:,i), patchSize);
+        end
+        lib = cat(1, libCell{:});
+    end
+end
+
