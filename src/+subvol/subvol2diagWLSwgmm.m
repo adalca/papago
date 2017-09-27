@@ -70,8 +70,6 @@ function subvol2diagWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, in
     
     %% get patches and init.
     dsPatches = robustVols2lib(dsSubvolsCrop, patchSize);
-    whos dsSubvolsCrop
-    whos dsPatches
     clear dsSubvolsCrop;
 
     % Need to select which patches to work with.
@@ -101,7 +99,6 @@ function subvol2diagWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, in
         fprintf('took %5.3f to load wgDs and Idx from %s\n', toc, clusterIdxMat);
     end
     clear dsPatches
-    disp(size(Y))
     
     % process weights (later to avoid keeping dsPatches and wtPatches in memory at same time)
     wtSubvolsCrop = cropVolume(wtSubvols, [diffPad+1 1], [volSize-diffPad nSubj]);

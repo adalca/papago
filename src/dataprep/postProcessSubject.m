@@ -11,7 +11,7 @@ function postProcessSubject(md, subjid, dsRate, usRates)
     
     %% Perform registration via DsXUsX rigid registration
     antsfile = md.getModality(sprintf('Ds%dUs%dANTsAffine', dsRate, dsRate), subjid);
-    preregmod = sprintf('Ds%dUs%dRegMat', dsRate, dsRate)
+    preregmod = sprintf('Ds%dUs%dRegMat', dsRate, dsRate);
     preregfile = md.getModality(preregmod, subjid);
     tform = antsAffine2tformAffine3d(antsfile);
     tform = tform.invert;

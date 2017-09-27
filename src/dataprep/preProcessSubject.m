@@ -1,11 +1,10 @@
-function preProcessSubject(md, subjid, dsRate, intensityNorm, atlMods, padAmount)
+function preProcessSubject(md, subjid, dsRate, intensityNorm, padAmount)
 % See processSubject. 
 % this does not do registration
 
     if ischar(md), load(md); end
     if ischar(subjid) && ~isempty(str2double(subjid)), subjid = str2double(subjid); end
     if ischar(intensityNorm), intensityNorm = str2double(intensityNorm); end
-    if ischar(atlMods), load(atlMods); end
 	if ischar(dsRate), dsRate = str2double(dsRate); end
     if ischar(padAmount), padAmount = str2double(padAmount); end
     
