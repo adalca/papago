@@ -1,4 +1,4 @@
-function prepHugeMatfileForVolumeSplitting(mdpath, mod, outmatfile)
+function prepHugeMatfileForVolumeSplitting(mdpath, mod, outmatfile, usematfile)
 % mdpath = [SYNTHESIS_DATA_PATH, '/ADNI_T1_baselines/md/adalca_wholevol_restor_md_2016_03_06.mat']
 % mdpath = [SYNTHESIS_DATA_PATH, '/ADNI_T1_baselines/md/adalca_wholevol_restor_md_2016_11_12.mat']
 % mod = 'Ds5Us5RegMask'
@@ -8,7 +8,15 @@ function prepHugeMatfileForVolumeSplitting(mdpath, mod, outmatfile)
 % mod = 'Ds7Us7Reg'
 % outmatfile = '/data/vision/polina/projects/stroke/work/patchSynthesis/data/stroke/subvols/brain_pad10/mar12_2016/stroke_brain_pad10_Ds7Us7Reg_volumes.mat'
 
+    % process inputs
+    narginchk(3,4)
+    if nargin < 4
+        usematfile = true;
+    end
+
+    % prepare load and save files/paths
     load(mdpath);
+    mkdir(fileparts(outmatfile));
     
     % get subjects
     tic;
@@ -16,26 +24,43 @@ function prepHugeMatfileForVolumeSplitting(mdpath, mod, outmatfile)
     nSubjects = md.getNumSubjects();
     volIdx = find(arrayfun(@(v) sys.isfile(md.getModality(mod, v)), 1:nSubjects));
     sids = md.sids(volIdx); %#ok<NASGU>
-    fprintf('found %d/%d files\n', numel(volIdx),md.getNumSubjects());
+    fprintf('found %d/%d files\n', numel(volIdx), md.getNumSubjects());
     
-    volume = md.loadVolume(mod, volIdx(1));
-    volumes = zeros([size(volume), numel(volIdx)]);
-    volumes(:,:,:,1) = volume;
+    % prepare large file
+    volsize = size(md.loadVolume(mod, volIdx(1)));
     
+    % prepare huge volumes
+    if usematfile
+        m = matfile(outmatfile);
+        m.volumes(volsize(1), volsize(2), volsize(3), numel(volIdx)) = 0;
+    else
+        volumes = zeros([volsize, numel(volIdx)]);
+        volumes(:,:,:,1) = volume;
+    end
+    
+    % fill in volumes
     vi = verboseIter(volIdx, 2);
     while vi.hasNext()
+        % load volumes
         [vii, idx] = vi.next();
         v = md.loadVolume(mod, vii);
-        volumes(:,:,:,idx) = v;
+        
+        % add volume to huge volume
+        if usematfile
+            m.volumes(:, :, :, idx) = v;
+        else
+            volumes(:, :, :, idx) = v;
+        end
     end
     vi.close();
-    toc;
+    fprintf('Hugefile iterations took %3.2f\n', toc);
         
     % save matfile
-    tic;
-    mkdir(fileparts(outmatfile));
-    save(outmatfile, 'volumes', 'volIdx', 'sids', '-v7.3');
-    toc;
+    if ~usematfile
+        tic;
+        save(outmatfile, 'volumes', 'volIdx', 'sids', '-v7.3');
+        fprintf('Saving hugefile took %3.2f\n', toc);
+    end
     
-    disp('done');
+    disp('done hugefile');
     
