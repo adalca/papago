@@ -32,6 +32,8 @@ function prepHugeMatfileForVolumeSplitting(mdpath, mod, outmatfile)
     toc;
         
     % save matfile
+    disp('saving matfile');
+    
     tic;
     mkdir(fileparts(outmatfile));
     save(outmatfile, 'volumes', 'volIdx', 'sids', '-v7.3');
