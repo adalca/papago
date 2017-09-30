@@ -111,32 +111,73 @@ function subvol2diagWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, in
     
 
     %% entropy to update W
-    
-    % get entropy of ds subvolumes
-    tic
-    enSubvol = dsSubvols*nan; 
-    for i = 1:size(enSubvol, 4)
-        enSubvol(:,:,:,i) = entropyfilt(dsSubvols(:,:,:,i), getnhood(strel('sphere', 2))); 
+    assert(params.grad.use || params.entropy.use, 'Must use entropy of grad');
+    if params.entropy.use
+        assert(~params.grad.use, 'cannot use both entropy and grad')
+
+        % get entropy of ds subvolumes
+        tic
+        enSubvol = dsSubvols*nan; 
+        for i = 1:size(enSubvol, 4)
+            enSubvol(:,:,:,i) = entropyfilt(dsSubvols(:,:,:,i), getnhood(strel('sphere', 2))); 
+        end
+        croppedEnSubvols = cropVolume(enSubvol, [diffPad + 1, 1], [volSize - diffPad, nSubj]);
+        assert(all(size(croppedEnSubvols) == sizeWtSubvolsCrop));
+
+        % get patches
+        enPatchCol = robustVols2lib(croppedEnSubvols, patchSize);
+        enDs = enPatchCol(trainsetIdx, :);
+        clear enPatchCol;
+
+        % adni
+        polyx = [params.entropy.lowEntropy, params.entropy.highEntropy];
+        polyy = [params.entropy.lowThr, params.entropy.highThr];
+        enFit = polyfit(polyx, polyy, 1);
+        wtThrEnDs = within([0.01, params.entropy.highThr], polyval(enFit, enDs));
+
+        wtEnDs = w > wtThrEnDs;
+        fprintf('mean entropy-based wt: %3.2f\n', mean(wtEnDs(:)))
+
+        data = struct('Y', Y, 'W', double(wtEnDs), 'K', K);
+        fprintf('took %5.3f to prepare entropy weighting\n', toc);
     end
-    croppedEnSubvols = cropVolume(enSubvol, [diffPad + 1, 1], [volSize - diffPad, nSubj]);
-    assert(all(size(croppedEnSubvols) == sizeWtSubvolsCrop));
 
-    % get patches
-    enPatchCol = robustVols2lib(croppedEnSubvols, patchSize);
-    enDs = enPatchCol(trainsetIdx, :);
-    clear enPatchCol;
-
-    % adni
-    polyx = [params.entropy.lowEntropy, params.entropy.highEntropy];
-    polyy = [params.entropy.lowThr, params.entropy.highThr];
-    enFit = polyfit(polyx, polyy, 1);
-    wtThrEnDs = within([0.01, params.entropy.highThr], polyval(enFit, enDs));
     
-    wtEnDs = w > wtThrEnDs;
-    fprintf('mean entropy-based wt: %3.2f\n', mean(wtEnDs(:)))
+    
+    %% gradient to update W
+    if params.grad.use
+        assert(~params.entropy.use, 'cannot use both entropy and grad')
+        
+        c3 = zeros(1, 3); c3(params.grad.dir) = 1;
+        
+        % get grad of ds subvolumes
+        tic
+        gradSubvol = dsSubvols*nan; 
+        for i = 1:size(gradSubvol, 4)
+            d1 = diff(dsSubvols(:,:,:,i), [], params.grad.dir);
+            d1 = padarray(abs(d1), c3, 0, 'pre');
+            gradSubvol(:,:,:,i) = volblur(d1, params.grad.blurSigma);
+        end
+        croppedGradSubvols = cropVolume(gradSubvol, [diffPad + 1, 1], [volSize - diffPad, nSubj]);
+        assert(all(size(croppedGradSubvols) == sizeWtSubvolsCrop));
 
-    data = struct('Y', Y, 'W', double(wtEnDs), 'K', K);
-    fprintf('took %5.3f to prepare entropy weighting\n', toc);
+        % get patches
+        gradPatchCol = robustVols2lib(croppedGradSubvols, patchSize);
+        gradDs = gradPatchCol(trainsetIdx, :);
+        clear gradPatchCol;
+
+        % get threshold
+        polyx = [params.grad.lowGrad, params.grad.highGrad];
+        polyy = [params.grad.lowThr, params.grad.highThr];
+        gradFit = polyfit(polyx, polyy, 1);
+        wtThrGradDs = within([0.01, params.grad.highThr], polyval(gradFit, gradDs));
+
+        wtGradDs = w > wtThrGradDs;
+        fprintf('mean grad-based wt: %3.2f\n', mean(wtGradDs(:)))
+
+        data = struct('Y', Y, 'W', double(wtGradDs), 'K', K);
+        fprintf('took %5.3f to prepare grad weighting\n', toc);
+    end
     
     %% run wgmm
     wgmmOpts = params.wgmm;
