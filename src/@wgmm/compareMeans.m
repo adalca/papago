@@ -20,6 +20,7 @@ function compareMeans(gmms, patchSize, titles)
         mupdist = pdist2(mainmu, mus{i});
         [~, mudistord{i}] = sort(mupdist, 'ascend');
     end
+    mudistord{:}
     
     % visualize mus via plots
     % [nRows, nCols] = subgrid(T);

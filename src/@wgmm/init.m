@@ -27,7 +27,7 @@ function wg = init(wg, data, varargin)
             
             if strcmp(wg.opts.init.method, 'wgmmI')
                 e = repmat(eye(D), [1,1,K]);
-                wg.params.W = wg.params.W + e(:, 1:size(wg.params.W, 2), :);
+                wg.params.W = wg.params.W*0.0001 + e(:, 1:size(wg.params.W, 2), :);
                 wg.params.sigma = wg.wv2sigma();
             end            
             
@@ -298,6 +298,46 @@ function wg = init(wg, data, varargin)
             for k = 1:K
                 W = wg.params.W(:,:,k);
                 wg.params.sigma(:,:,k) = W * W' + wg.params.sigmasq(k) .* eye(D);
+            end
+            
+            
+        case 'latentSubspace-randW-conv'
+            % initialize each cluster by randomly (randn) initializing W, zero means, and random
+            % (rand) residual variance
+            
+            % zero-means
+            wg.params.mu = zeros(K, D);
+            wg.params.pi = ones(1,K) ./ K;
+            wg.params.W = randn(D, wg.opts.model.dopca, K)*0.01;          
+            wg.params.sigmasq = rand(1, K)*0.001;
+            
+            % initiate sigmas
+            for k = 1:K
+                tW = wg.params.W(:,:,k);
+                wg.params.sigma(:,:,k) = tW * tW' + wg.params.sigmasq(k) .* eye(D);
+            end
+            
+            
+            ridx = argmax(varargin{1}.wgmm.expect.gammank, [], 2);
+            for k = 1:K
+                x = Y(ridx == k, :);
+                w = W(ridx == k, :);
+                
+                d = struct('Y', x, 'W', w, 'K', 1);
+                wgi = wgmm(varargin{1}.wgmm.opts, wg.params);
+                wgi.params.mu = wg.params.mu(k, :);
+                wgi.params.pi = wg.params.pi(k);
+                wgi.params.W = wg.params.W(:, :, k); % + randn(size(wgi.params.W(:, :, k))) * 0.01;
+                wgi.params.sigmasq(k) = wg.params.sigmasq(k);
+                
+                wgk = wgmmfit(d, 'modelName', wg.opts.model.name, 'modelArgs', wg.opts.model, ...
+                    'init', 'wgmm', 'initArgs', struct('wgmm', wgi), ...
+                    'verbose', 1, 'replicates', 1, 'MaxIter', 5);
+                
+                wg.params.mu(k,:) = wgk.params.mu;
+                wg.params.W(:,:,k) = wgk.params.W;
+                wg.params.sigmasq(k) = wgk.params.sigmasq;
+                wg.params.pi(k) = sum(ridx == k)./numel(ridx);
             end
             
             
@@ -664,17 +704,22 @@ function wg = init(wg, data, varargin)
             % compute expectations and cluster assignments
             if isfield(data, 'allW')
                 d = struct('Y', data.allY, 'W', data.allW, 'K', data.K);
-                [~, wg.expect] = varargin{1}.wgmm.estep(d); 
-                ridx = argmax(wg.expect.gammank, [], 2);                
+                [~, wg.expect] = varargin{1}.wgmm.estep(d);          
             else
                 [~, wg.expect] = varargin{1}.wgmm.estep(data); 
-                ridx = argmax(wg.expect.gammank, [], 2);
             end
+            wg.params = varargin{1}.wgmm.params;
+            wg = wg.recluster();
+            ridx = argmax(wg.expect.gammank, [], 2);
             
             % go through each cluster
             for k = 1:K
                 % extract data
                 cidx = ridx == k;
+                if sum(cidx) < 10
+                    warning('sum(cidx) is 0. Randomizing');
+                    cidx = rand(numel(cidx), 1) < (1/K);
+                end
                 if isfield(data, 'allW')
                     w = data.allW(cidx, :);
                     X = data.allY(cidx, :);
@@ -689,6 +734,11 @@ function wg = init(wg, data, varargin)
                 
                 % compute mu
                 wg.params.mu(k, :) = wmean(X, w, 1);
+                if ~isclean(wg.params.mu(k, :))
+                    warning('mu is not clean, trying again');
+                    wg.params.mu(k, :) = wmean(X, max(w, 1e-7), 1);
+                    assert(isclean(wg.params.mu(k, :)));
+                end
                 xCent = bsxfun(@minus, X, wg.params.mu(k, :));
                 
                 % model 3 sigma
@@ -754,12 +804,22 @@ function wg = init(wg, data, varargin)
                     case 'rand'
                         thr = varargin{1}.sigmaCorrThr;
                         badidx = wtsum < thr | isnan(s);
-                        fprintf('replacing %f%% of entries with randn', mean(badidx(:)))
+                        
+                        fprintf('replacing %f%% of entries with randn\n', mean(badidx(:)))
                         r = normrnd(0, std(s(~badidx)), size(s));
                         tmap = triu(true(size(s)));
                         s(badidx & tmap) = r(badidx & tmap);
                         r = r';
                         s(badidx & ~tmap) = r(badidx & ~tmap);
+                        
+                    case 'ld'                  
+                        
+                        thr = varargin{1}.sigmaCorrThr;
+                        badidx = wtsum < thr | isnan(s);
+                        
+                        fprintf('replacing %f%% of entries with ld\n', mean(badidx(:)));
+                        r = varargin{1}.wgmm.params.sigma(:,:,1) * max(std(s(~badidx)), eps);
+                        s(badidx) = r(badidx);
                         
                     case 'flip-rand'
                         thr = varargin{1}.sigmaCorrThr;

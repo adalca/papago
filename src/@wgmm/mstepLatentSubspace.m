@@ -34,7 +34,7 @@ function params = mstepLatentSubspace(wg, data)
     for k = 1:K
         
         % TODO. testing various hacks.
-        if isfield(data, 'estepW') && numel(wg.stats) < 10
+        if isfield(data, 'mstepW') && numel(wg.stats) < 10
             warning('mstep hack'); 
             obsMask = data.estepW == 1; 
         end
@@ -85,7 +85,7 @@ function params = mstepLatentSubspace(wg, data)
         
         
         % TODO. testing various hacks.
-        if isfield(data, 'estepW') && numel(wg.stats) < 10
+        if isfield(data, 'mstepW') && numel(wg.stats) < 10
             warning('mstep hack (end)'); 
             obsMask = data.W == 1; 
         end
