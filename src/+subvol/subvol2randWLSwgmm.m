@@ -1,4 +1,4 @@
-function subvol2diagWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFilename)
+function subvol2randWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, iniFilename)
 % this file structure is a relic from MICCAI 2016 / Thesis 2016 attempt. We'll keep it for now...
 % we're hard-coding dsidx2S init.
 % 
@@ -214,20 +214,19 @@ function subvol2diagWLSwgmm(dsSubvolMat, wtSubvolMat, clusterIdxMat, wgmmMat, in
     %% run wgmm
     wgmmOpts = params.wgmm;
     
-    % prepare the wgDsDiag
-    wgDsLs.expect = wgDs.expect;
+    % initial
+    wgInit = wgmmfit(data, 'modelName', 'latentSubspace', ...
+        'modelArgs', struct('dopca', wgmmOpts.dLow), ...
+        'minIter', wgmmOpts.minItersInit, 'maxIter', wgmmOpts.maxItersInit, 'TolFun', wgmmOpts.tolFun, ...
+        'verbose', 2, 'replicates', wgmmOpts.repsInit, ...
+        'init', 'latentSubspace-randW');
     
-    dHigh = size(Y, 2);
-    wgDsLsDiag = wgmm(wgDsLs.opts, wgDsLs.params);
-    wgDsLsDiag.params.sigma = repmat(eye(dHigh), [1, 1, K]); 
-    wgDsLsDiag.params.W = wgDsLsDiag.params.sigma(:, 1:wgmmOpts.dLow, :);
-    wgDsLsDiag.expect = wgDs.expect;
-    
-    % ecm
-    wg = wgmmfit(data, 'modelName', 'latentSubspace', 'modelArgs', struct('dopca', wgmmOpts.dLow), ...
+    % take the highest contender, and go all the way.
+    wg = wgmmfit(data, 'modelName', 'latentSubspace', ...
+        'modelArgs', struct('dopca', wgmmOpts.dLow), ...
         'minIter', wgmmOpts.minIters, 'maxIter', wgmmOpts.maxIters, 'TolFun', wgmmOpts.tolFun, ...
         'verbose', 2, 'replicates', wgmmOpts.reps, ...
-        'init', 'wgmm', 'initArgs', struct('wgmm', wgDsLsDiag));
+        'init', 'wgmm', 'initArgs', struct('wgmm', wgInit));
 
     wgwhole = wg;
     wg = wgmm(wg.opts, wg.params);

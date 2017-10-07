@@ -145,6 +145,33 @@ function varargout = recon(wg, data, method, varargin)
 %                 yRecon{i}(obsIdx) = ySubjObs;
                 yReconChk{i} = muSubj' + X_ki' * w';
                 yRecon{i} = yReconChk{i};
+                
+                qidx = argmax(expect.gammank, [], 2) == 3;
+                fidx = find(qidx);
+                
+                if  0 & max(Y{i}) < 0.08
+                    k
+                    zRecon = nan(size(data.yrotmasks{i})); 
+                    zRecon(data.yrotmasks{i}) = yRecon{i}; 
+                    zTrue = zRecon; 
+                    zTrue(data.yrotmasks{i}) = Y{i}; 
+                    zMask = zRecon*0; 
+                    zMask(data.yrotmasks{i}) = data.ydsmasks{i}; 
+                    zMean = zRecon*0; 
+                    zMean(data.yrotmasks{i}) = muSubj;
+                    view3Dopt(zRecon, zTrue, 1*zMask, zMean)
+                    disp('hi');
+                end
+                
+                if 0 & ismember(i, fidx(100:end)) && max(Y{i}) < 0.12 && false
+                    zRecon = nan(size(data.yrotmasks{i})); 
+                    zRecon(data.yrotmasks{i}) = yRecon{i}; 
+                    zTrue = zRecon; 
+                    zTrue(data.yrotmasks{i}) = Y{i}; 
+                    zMask = zRecon*0; 
+                    zMask(data.yrotmasks{i}) = data.ydsmasks{i}; 
+                    view3Dopt(zRecon, zTrue, 1*zMask)
+                end
             end
             if rcondwarnings > 0
                 warning('WW'' is badly conditioned for %d patches. Forcing y = Wx + mu', rcondwarnings);

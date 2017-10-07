@@ -54,10 +54,8 @@ function fwgmm = fit(data, varargin)
             
             % E step
             etic = tic;
-%             warning('SKIPPING E STEP');
             [ll(ct + 1), expect] = wg.estep(data);
             wg.expect = expect;
-%             ll(ct + 1) = wg.estep(data);
             
             wg.stats(ct+1).expect = wg.expect;
             wg.stats(ct+1).etoc = toc(etic);
