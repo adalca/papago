@@ -46,21 +46,23 @@ function subvolReconFlexible(wgmmFile, atlSubvols, iniReconFile, atlSubjVol, atl
     
     % get rotation data for this subvolume. do NOT pass in an output file -- we just want this
     % returned. This loads a signle volume, despite the plural (e.g. subvols) in the variable names.
-    [a, b, c, d, rangeMins] = ...
-        vol2subvolInterpData(interpMatData, atlSubjVol, atlSubjMask, atlReconLoc, atlSubvolSize);
+    prepG = strcmp(ini.estep, 'inatlas');
+    [a, b, c, d, rangeMins] = vol2subvolInterpData(interpMatData, atlSubjVol, ...
+        atlSubjMask, atlReconLoc, atlSubvolSize, '', prepG);
     interpData.subVols = {a};
     interpData.subVolMasks = {b}; 
     interpData.atl2SubjInterpMat = {c};
     interpData.subj2AtlInterpMat = {d};
     
     % get R matrices.
-    [interpDataPatches, availableData] = interpData2patchRotData(interpData, atlSubvolSize, 0, atlPatchSize, 1);
+    [interpDataPatches, availableData] = interpData2patchRotData(interpData, atlSubvolSize, 0, atlPatchSize, 1, prepG );
     
     % clean up non-completed patches
     if not(all(availableData(:)))
         fprintf('Using %d available patches\n', sum(availableData(:)));
         assert(any(availableData(:)), 'Could not find available patch');
         interpDataPatches.lenR = interpDataPatches.lenR(availableData, :);
+        if prepG, interpDataPatches.lenG = interpDataPatches.lenG(availableData, :); end
         interpDataPatches.yorigAll = interpDataPatches.yorigAll(availableData, :);
         interpDataPatches.yrotmasksAll = interpDataPatches.yrotmasksAll(availableData, :);
         interpDataPatches.ydsmasksAll = interpDataPatches.ydsmasksAll(availableData, :);
@@ -73,8 +75,17 @@ function subvolReconFlexible(wgmmFile, atlSubvols, iniReconFile, atlSubjVol, atl
     % reconstruct patches
     nanmaskvox2volfn = @(a,b) maskvox2vol(a,b, @nan);
     nPatches = numel(interpDataPatches.yorigAll);
-    volRotData = paffine.prepareWgmmRData(interpDataPatches, 1:nPatches);
+    volRotData = paffine.prepareWgmmRData(interpDataPatches, 1:nPatches, prepG);
     volRotData.K = numel(wg.params.pi);
+    if prepG
+        Y = zeros(nPatches, size(volRotData.G.data, 1));
+        W = zeros(nPatches, size(volRotData.G.data, 1));
+        for i = 1:nPatches
+            Y(i,:) = volRotData.Y{i} * volRotData.G.data(:, volRotData.G.idx{i})';
+            W(i,:) = volRotData.ydsmasks{i} * volRotData.G.data(:, volRotData.G.idx{i})';
+        end
+        volRotData.extradata = struct('Y', Y, 'W', double(W > ini.estepwthr), 'wts', W, 'K', volRotData.K);
+    end
     reconPatches = wg.recon(volRotData, reconModel); %'latentMissingR');
 %     reconPatches = cellfunc(@(x) x(:), reconPatches);
     

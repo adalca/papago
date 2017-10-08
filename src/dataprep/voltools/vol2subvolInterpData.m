@@ -1,4 +1,6 @@
-function [subjSubvol, subjMaskSubvol, R, G, rangeMins] = vol2subvolInterpData(interpMatData, subjVol, subjMask, atlSubvolLoc, atlSubvolSize, outmatfile)
+function [subjSubvol, subjMaskSubvol, R, G, rangeMins] = ...
+    vol2subvolInterpData(interpMatData, subjVol, subjMask, atlSubvolLoc, ...
+    atlSubvolSize, outmatfile, prepG)
 % from volume/subject data, for a given subvolume location and size in the
 % atlas space, extract the appropriate original subvolume in subject space, as well as the forward
 % and inverse R matrices.
@@ -12,9 +14,14 @@ function [subjSubvol, subjMaskSubvol, R, G, rangeMins] = vol2subvolInterpData(in
 % TODO: replace some of this vode with vol2subvolInterpmat() !!!
 
     % input parsing
-    narginchk(5, 6);
+    narginchk(5, 7);
     if ischar(atlSubvolLoc), atlSubvolLoc = str2num(atlSubvolLoc); end
     if ischar(atlSubvolSize), atlSubvolSize = str2num(atlSubvolSize); end
+    
+    if ~exist('prepG', 'var')
+        prepG = false;
+    end
+    
     tic;
     
     if ischar(subjVol) && sys.isfile(subjVol)
@@ -45,9 +52,12 @@ function [subjSubvol, subjMaskSubvol, R, G, rangeMins] = vol2subvolInterpData(in
     %   subject. In thesis notation, this is "R". subj2atlR is then Gamma.
     subjIdx = sub2ind(size(subjVol), subjSubvolRangeNd{:});
     R = interpMatData.atl2subjR(subjIdx(:), atlIdx(:));
-    % G = interpMatData.subj2atlR(atlIdx(:), subjIdx(:));
-    warning('G not being read. FIXME');
-    G = nan;
+    if prepG
+        G = interpMatData.subj2atlR(atlIdx(:), subjIdx(:));
+    else
+        warning('G not being read.');
+        G = nan;
+    end
 
     nfo = struct();
     nfo.subvolLoc = atlSubvolLoc;
@@ -57,7 +67,7 @@ function [subjSubvol, subjMaskSubvol, R, G, rangeMins] = vol2subvolInterpData(in
     subjMaskSubvol = subjMask(subjSubvolRange{:});
     
     % save matfile
-    if exist('outmatfile', 'var')
+    if exist('outmatfile', 'var') && numel(outmatfile) > 0
         tic;
         mkdir(fileparts(outmatfile));
         save(outmatfile, 'subjSubvol', 'subjMaskSubvol', 'R', 'G', 'nfo', '-v7.3');
