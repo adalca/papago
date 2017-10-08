@@ -75,6 +75,8 @@ function subvolReconFlexible(wgmmFile, atlSubvols, iniReconFile, atlSubjVol, atl
     nPatches = numel(interpDataPatches.yorigAll);
     volRotData = paffine.prepareWgmmRData(interpDataPatches, 1:nPatches);
     volRotData.K = numel(wg.params.pi);
+    if strcmp(ini.estep, 'atlas')
+        volRotData
     reconPatches = wg.recon(volRotData, reconModel); %'latentMissingR');
 %     reconPatches = cellfunc(@(x) x(:), reconPatches);
     

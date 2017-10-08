@@ -91,13 +91,19 @@ function varargout = recon(wg, data, method, varargin)
             [~, dLow, ~] = size(wg.params.W);
             
             % get maximum cluster assignment via e-step. Make sure the Estep is done in LMR
-            name = wg.opts.model.name;
-            wg.opts.model.name = 'latentMissingR';
-            warning('TRY TO DO non-R based expectation!');
-            [lll, expect] = wg.estep(data);
-            
+            inspace=isfield(data, 'extradata');
+            if ~inspace
+                name = wg.opts.model.name;
+                wg.opts.model.name = 'latentMissingR';
+                warning('TRY TO DO non-R based expectation!');
+                [lll, expect] = wg.estep(data);
+                wg.opts.model.name = name;
+            else
+                warning('doing expectation in atlas space! \n\n\n');
+                [lll, expect] = wg.estep(data.extradata);
+            end
+
             maxk = argmax(expect.gammank, [], 2);
-            wg.opts.model.name = name;
             
             % indexing in columns is *much* faster (esp. for sparse matrices) than indexing in rows -- so we
             % transpose the R data matrix and index in columns instead of rows.
@@ -198,6 +204,7 @@ function varargout = recon(wg, data, method, varargin)
             [dHigh, dLow, ~] = size(wg.params.W);
             
             [lll, expect] = wg.estep(data);
+
             % maxk = argmax(expect.gammank, [], 2);
             mi = argmax(expect.gammank, [], 2);
             

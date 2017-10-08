@@ -241,9 +241,13 @@ function logpin = logpost(wg, data)
                 logmvn(i, :) = lmvn;
             end
             
+            assert(isclean(logmvn), 'logmvn is not clean');
+            
             % finally compute the posterior
             logpi = log(wg.params.pi);
             logpin = bsxfun(@plus, logpi, logmvn);
+            
+            assert(isclean(logpin), 'logp(params|x) is not clean');
             
         case {'wLatentSubspace'}
             % missing variables. 

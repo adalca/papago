@@ -1,4 +1,5 @@
-function [subjSubvol, subjMaskSubvol, R, G, rangeMins] = vol2subvolInterpData(interpMatData, subjVol, subjMask, atlSubvolLoc, atlSubvolSize, outmatfile)
+function [subjSubvol, subjMaskSubvol, R, G, rangeMins] = ...
+    vol2subvolInterpData(interpMatData, subjVol, subjMask, atlSubvolLoc, atlSubvolSize, outmatfile)
 % from volume/subject data, for a given subvolume location and size in the
 % atlas space, extract the appropriate original subvolume in subject space, as well as the forward
 % and inverse R matrices.
