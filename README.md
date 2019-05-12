@@ -30,3 +30,15 @@ Loop over (sub)grid:
 1. run `papago.recon` to reconstruct all the patches in this subvolume (perhaps for just a subset of subjects)  
 
 Quilt patches.
+
+Papers
+--------
+If you find this library useful, please cite ([download bib](citations.bib)):  
+
+- **Medical Image Imputation from Image Collections**  
+[A.V. Dalca](http://adalca.mit.edu), [K.L. Bouman](https://people.csail.mit.edu/klbouman/), [W.T. Freeman](https://billf.mit.edu/), [M.R. Sabuncu](http://sabuncu.engineering.cornell.edu/), [N.S. Rost](https://www.massgeneral.org/doctors/doctor.aspx?id=17477), [P. Golland](https://people.csail.mit.edu/polina/)  
+IEEE TMI: Transactions on Medical Imaging 38.2 (2019): 504-514. eprint [arXiv:1808.05732](https://arxiv.org/abs/1808.05732)  
+
+- **Population Based Image Imputation**  
+[A.V. Dalca](http://adalca.mit.edu), [K.L. Bouman](https://people.csail.mit.edu/klbouman/), [W.T. Freeman](https://billf.mit.edu/), [M.R. Sabuncu](http://sabuncu.engineering.cornell.edu/), [N.S. Rost](https://www.massgeneral.org/doctors/doctor.aspx?id=17477), [P. Golland](https://people.csail.mit.edu/polina/)  
+In Proc. IPMI: International Conference on Information Processing and Medical Imaging. LNCS 10265, pp 1-13. 2017. 
